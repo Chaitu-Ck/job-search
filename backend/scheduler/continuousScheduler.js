@@ -1,24 +1,22 @@
 const cron = require('node-cron');
 const logger = require('../utils/logger');
+const { SEARCH_KEYWORDS } = require('../config/companySources');
+
+// Import all scrapers
 const linkedinScraper = require('../scrapers/linkedinScraper');
 const reedScraper = require('../scrapers/reedScraper');
 const indeedScraper = require('../scrapers/indeedScraper');
+const cwjobsScraper = require('../scrapers/cwjobsScraper');
+const totaljobsScraper = require('../scrapers/totaljobsScraper');
+const companyPagesScraper = require('../scrapers/companyPagesScraper');
+
 const jobService = require('../services/jobService');
 const metrics = require('../utils/metrics');
 
 class ContinuousScheduler {
   constructor() {
     this.isRunning = false;
-    this.searchKeywords = [
-      'SOC Analyst',
-      'Security Analyst',
-      'Junior Penetration Tester',
-      'Linux Administrator',
-      'Cybersecurity Analyst',
-      'Cyber Security Engineer',
-      'Information Security Analyst',
-      'Network Security Engineer'
-    ];
+    this.searchKeywords = SEARCH_KEYWORDS; // Use expanded keywords from config
     this.location = 'United Kingdom';
   }
 
@@ -58,13 +56,16 @@ class ContinuousScheduler {
         this.scrapeLinkedIn(),
         this.scrapeReed(),
         this.scrapeIndeed(),
+        this.scrapeCWJobs(),
+        this.scrapeTotalJobs(),
         this.scrapeCompanyPages()
       ]);
       
       // Process results
       let totalJobs = 0;
+      const platforms = ['LinkedIn', 'Reed', 'Indeed', 'CWJobs', 'TotalJobs', 'Company Pages'];
+      
       results.forEach((result, index) => {
-        const platforms = ['LinkedIn', 'Reed', 'Indeed', 'Company Pages'];
         if (result.status === 'fulfilled') {
           totalJobs += result.value;
           logger.info(`✅ ${platforms[index]}: ${result.value} jobs scraped`);
@@ -87,17 +88,12 @@ class ContinuousScheduler {
   }
 
   async scrapeLinkedIn() {
-    const jobs = await linkedinScraper.scrapeMultipleSearches(
-      this.searchKeywords,
-      this.location
-    );
+    // Use top 10 keywords for LinkedIn
+    const topKeywords = this.searchKeywords.slice(0, 10);
+    const jobs = await linkedinScraper.scrapeMultipleSearches(topKeywords, this.location);
     
     const result = await jobService.bulkInsertJobs(
-      jobs.map(job => ({
-        ...job,
-        platform: 'LinkedIn',
-        status: 'pending'
-      }))
+      jobs.map(job => ({ ...job, platform: 'LinkedIn', status: 'pending' }))
     );
     
     return result.inserted;
@@ -105,18 +101,16 @@ class ContinuousScheduler {
 
   async scrapeReed() {
     const reedJobs = [];
+    // Use top 8 keywords for Reed
+    const keywords = this.searchKeywords.slice(0, 8);
     
-    for (const keyword of this.searchKeywords) {
+    for (const keyword of keywords) {
       const jobs = await reedScraper.scrapeJobs(keyword, this.location);
       reedJobs.push(...jobs);
     }
     
     const result = await jobService.bulkInsertJobs(
-      reedJobs.map(job => ({
-        ...job,
-        platform: 'Reed',
-        status: 'pending'
-      }))
+      reedJobs.map(job => ({ ...job, platform: 'Reed', status: 'pending' }))
     );
     
     return result.inserted;
@@ -124,34 +118,65 @@ class ContinuousScheduler {
 
   async scrapeIndeed() {
     const indeedJobs = [];
+    // Use top 8 keywords for Indeed
+    const keywords = this.searchKeywords.slice(0, 8);
     
-    for (const keyword of this.searchKeywords) {
+    for (const keyword of keywords) {
       const jobs = await indeedScraper.scrapeJobs(keyword, this.location);
       indeedJobs.push(...jobs);
     }
     
     const result = await jobService.bulkInsertJobs(
-      indeedJobs.map(job => ({
-        ...job,
-        platform: 'Indeed',
-        status: 'pending'
-      }))
+      indeedJobs.map(job => ({ ...job, platform: 'Indeed', status: 'pending' }))
+    );
+    
+    return result.inserted;
+  }
+
+  async scrapeCWJobs() {
+    const cwJobs = [];
+    // Use top 5 keywords for CWJobs (IT/Tech specialist)
+    const keywords = this.searchKeywords.slice(0, 5);
+    
+    for (const keyword of keywords) {
+      const jobs = await cwjobsScraper.scrapeJobs(keyword, this.location);
+      cwJobs.push(...jobs);
+    }
+    
+    const result = await jobService.bulkInsertJobs(
+      cwJobs.map(job => ({ ...job, platform: 'CWJobs', status: 'pending' }))
+    );
+    
+    return result.inserted;
+  }
+
+  async scrapeTotalJobs() {
+    const totalJobs = [];
+    // Use top 5 keywords for TotalJobs
+    const keywords = this.searchKeywords.slice(0, 5);
+    
+    for (const keyword of keywords) {
+      const jobs = await totaljobsScraper.scrapeJobs(keyword, this.location);
+      totalJobs.push(...jobs);
+    }
+    
+    const result = await jobService.bulkInsertJobs(
+      totalJobs.map(job => ({ ...job, platform: 'TotalJobs', status: 'pending' }))
     );
     
     return result.inserted;
   }
 
   async scrapeCompanyPages() {
-    // List of UK cybersecurity companies with direct career pages
-    const companies = [
-      { name: 'BAE Systems', url: 'https://www.baesystems.com/careers' },
-      { name: 'GCHQ', url: 'https://www.gchq-careers.co.uk/' },
-      { name: 'NCC Group', url: 'https://www.nccgroup.com/careers/' },
-      // Add more companies
-    ];
+    // Use top 5 keywords for company pages
+    const keywords = this.searchKeywords.slice(0, 5);
+    const jobs = await companyPagesScraper.scrapeAllCompanies(keywords);
     
-    // Implement company page scraper
-    return 0; // Placeholder
+    const result = await jobService.bulkInsertJobs(
+      jobs.map(job => ({ ...job, platform: 'Company Career Page', status: 'pending' }))
+    );
+    
+    return result.inserted;
   }
 
   async cleanupOldJobs() {

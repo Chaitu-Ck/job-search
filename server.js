@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'frontend')));
 
-// Add these lines to server.js
+// Import routes and services
 const dashboardRoutes = require('./backend/routes/dashboard');
 const continuousScheduler = require('./backend/scheduler/continuousScheduler');
 const emailService = require('./backend/services/emailService');

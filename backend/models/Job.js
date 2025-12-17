@@ -127,6 +127,13 @@ const JobSchema = new mongoose.Schema({
     }
   },
   
+  // ===== GENERATED EMAIL =====
+  generatedEmail: {
+    subject: String,
+    body: String,
+    generatedAt: Date
+  },
+  
   // ===== USER INTERACTION =====
   userActions: {
     viewedAt: Date,
