@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Automation Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px 40px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .header h1 { font-size: 28px; margin-bottom: 5px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      padding: 30px 40px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: transform 0.2s;
+    }
+    
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+    
+    .stat-card h3 { color: #64748b; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
+    .stat-card .number { font-size: 36px; font-weight: bold; color: #1e293b; }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px 40px;
+    }
+    
+    .filters {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    
+    .filter-group label { font-size: 12px; color: #64748b; font-weight: 600; }
+    
+    .filter-group select,
+    .filter-group input {
+      padding: 8px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-primary:hover { background: #5568d3; }
+    
+    .jobs-grid {
+      display: grid;
+      gap: 20px;
+    }
+    
+    .job-card {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: all 0.2s;
+    }
+    
+    .job-card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      transform: translateY(-2px);
+    }
+    
+    .job-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 15px;
+    }
+    
+    .job-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 5px;
+    }
+    
+    .job-company {
+      color: #667eea;
+      font-weight: 600;
+      font-size: 16px;
+    }
+    
+    .job-meta {
+      display: flex;
+      gap: 20px;
+      margin: 15px 0;
+      flex-wrap: wrap;
+    }
+    
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: #64748b;
+      font-size: 14px;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-ready { background: #d1fae5; color: #065f46; }
+    .badge-applied { background: #dbeafe; color: #1e40af; }
+    .badge-failed { background: #fee2e2; color: #991b1b; }
+    
+    .platform-badge {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .platform-linkedin { background: #0a66c2; color: white; }
+    .platform-reed { background: #00b67a; color: white; }
+    .platform-indeed { background: #2164f3; color: white; }
+    
+    .job-description {
+      color: #475569;
+      line-height: 1.6;
+      margin: 15px 0;
+      max-height: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .job-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #e2e8f0;
+    }
+    
+    .btn-action {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .btn-view { background: #f1f5f9; color: #475569; }
+    .btn-view:hover { background: #e2e8f0; }
+    
+    .btn-prepare { background: #667eea; color: white; }
+    .btn-prepare:hover { background: #5568d3; }
+    
+    .btn-apply { background: #10b981; color: white; }
+    .btn-apply:hover { background: #059669; }
+    
+    .btn-edit { background: #f59e0b; color: white; }
+    .btn-edit:hover { background: #d97706; }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      overflow-y: auto;
+    }
+    
+    .modal-content {
+      background: white;
+      max-width: 900px;
+      margin: 50px auto;
+      border-radius: 12px;
+      padding: 30px;
+      position: relative;
+    }
+    
+    .modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: #f1f5f9;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
+    }
+    
+    .modal-close:hover { background: #e2e8f0; }
+    
+    .email-preview {
+      background: #f8fafc;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #334155;
+    }
+    
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+    
+    .form-group textarea {
+      min-height: 200px;
+      resize: vertical;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>Job Automation Dashboard</h1>
+    <p>24/7 automated job scraping and application system</p>
+  </header>
+  
+  <section class="stats-container">
+    <div class="stat-card">
+      <h3>Total Jobs</h3>
+      <div class="number" id="total-jobs">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Pending</h3>
+      <div class="number" id="pending-jobs">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Ready to Apply</h3>
+      <div class="number" id="ready-jobs">0</div>
+    </div>
+    <div class="stat-card">
+      <h3>Applied</h3>
+      <div class="number" id="applied-jobs">0</div>
+    </div>
+  </section>
+  
+  <div class="container">
+    <div class="filters">
+      <div class="filter-group">
+        <label for="filter-status">Status</label>
+        <select id="filter-status">
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="ready_for_review">Ready to Apply</option>
+          <option value="applied">Applied</option>
+          <option value="failed">Failed</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="filter-platform">Platform</label>
+        <select id="filter-platform">
+          <option value="all">All Platforms</option>
+          <option value="LinkedIn">LinkedIn</option>
+          <option value="Reed">Reed</option>
+          <option value="Indeed">Indeed</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="search-input">Search</label>
+        <input type="text" id="search-input" placeholder="Search by title or company...">
+      </div>
+      
+      <button class="btn btn-primary" id="refresh-btn">Refresh</button>
+    </div>
+    
+    <div class="jobs-grid" id="jobs-container">
+      <!-- Jobs will be dynamically inserted here -->
+      <p style="text-align:center;color:#64748b;padding:40px;">Loading jobs...</p>
+    </div>
+  </div>
+  
+  <!-- Job Detail Modal -->
+  <div class="modal" id="job-modal">
+    <div class="modal-content">
+      <button class="modal-close">&times;</button>
+      <h2 id="modal-title">Job Title</h2>
+      <h3 id="modal-company">Company Name</h3>
+      <div id="modal-description" style="margin: 20px 0; line-height: 1.6;"></div>
+      <a href="#" id="modal-url" target="_blank" class="btn btn-primary">View Original Job</a>
+    </div>
+  </div>
+  
+  <!-- Edit Modal -->
+  <div class="modal" id="edit-modal">
+    <div class="modal-content">
+      <button class="modal-close">&times;</button>
+      <h2>Edit Application</h2>
+      
+      <div class="form-group">
+        <label for="email-subject">Email Subject</label>
+        <input type="text" id="email-subject" placeholder="Application for [Position] Position">
+      </div>
+      
+      <div class="form-group">
+        <label for="email-body">Email Body</label>
+        <textarea id="email-body" placeholder="Enter your customized email content..."></textarea>
+      </div>
+      
+      <div class="form-group">
+        <label>Resume Preview</label>
+        <div class="email-preview">
+          <p>Resume will be attached automatically when you apply.</p>
+          <p><em>Note: In a full implementation, you would see a preview of your optimized resume here.</em></p>
+        </div>
+      </div>
+      
+      <button class="btn btn-primary" id="save-changes">Save Changes</button>
+    </div>
+  </div>
+  
+  <script>
+    class JobDashboard {
+      constructor() {
+        this.jobs = [];
+        this.filters = {
+          status: 'all',
+          platform: 'all',
+          search: ''
+        };
+        this.init();
+      }
+
+      async init() {
+        await this.loadJobs();
+        await this.loadStats();
+        this.setupEventListeners();
+        this.renderJobs();
+      }
+
+      async loadJobs() {
+        try {
+          // In a real implementation, this would fetch from your API
+          // const response = await fetch('/api/jobs');
+          // this.jobs = await response.json();
+          
+          // For demonstration, using sample data
+          this.jobs = [
+            {
+              _id: '1',
+              title: 'SOC Analyst',
+              company: 'Tech Corp',
+              location: 'London, UK',
+              salary: '£35,000 - £45,000',
+              platform: 'LinkedIn',
+              status: 'pending',
+              description: 'We are looking for a skilled SOC Analyst to join our security operations team. You will be responsible for monitoring security events, analyzing threats, and responding to incidents.',
+              scrapedAt: new Date(),
+              url: 'https://linkedin.com/jobs/view/soc-analyst-at-tech-corp-12345'
+            },
+            {
+              _id: '2',
+              title: 'Security Analyst',
+              company: 'Finance Ltd',
+              location: 'Manchester, UK',
+              salary: '£30,000 - £40,000',
+              platform: 'Reed',
+              status: 'ready_for_review',
+              description: 'Join our cybersecurity team as a Security Analyst. You will help protect our financial systems and customer data from cyber threats.',
+              scrapedAt: new Date(Date.now() - 86400000), // 1 day ago
+              url: 'https://reed.co.uk/jobs/security-analyst-67890'
+            },
+            {
+              _id: '3',
+              title: 'Junior Penetration Tester',
+              company: 'Consulting Group',
+              location: 'Remote',
+              salary: '£28,000 - £38,000',
+              platform: 'Indeed',
+              status: 'applied',
+              description: 'Exciting opportunity for a junior penetration tester to work with our clients on security assessments and vulnerability testing.',
+              scrapedAt: new Date(Date.now() - 172800000), // 2 days ago
+              url: 'https://indeed.co.uk/jobs/junior-penetration-tester-54321'
+            }
+          ];
+        } catch (error) {
+          console.error('Failed to load jobs:', error);
+        }
+      }
+
+      async loadStats() {
+        try {
+          // In a real implementation, this would fetch from your API
+          // const response = await fetch('/api/jobs/stats');
+          // const stats = await response.json();
+          
+          // For demonstration, using sample data
+          const stats = {
+            total: 45,
+            pending: 28,
+            ready: 12,
+            applied: 5
+          };
+          
+          document.getElementById('total-jobs').textContent = stats.total;
+          document.getElementById('pending-jobs').textContent = stats.pending;
+          document.getElementById('ready-jobs').textContent = stats.ready;
+          document.getElementById('applied-jobs').textContent = stats.applied;
+        } catch (error) {
+          console.error('Failed to load stats:', error);
+        }
+      }
+
+      setupEventListeners() {
+        document.getElementById('filter-status').addEventListener('change', (e) => {
+          this.filters.status = e.target.value;
+          this.renderJobs();
+        });
+
+        document.getElementById('filter-platform').addEventListener('change', (e) => {
+          this.filters.platform = e.target.value;
+          this.renderJobs();
+        });
+
+        document.getElementById('search-input').addEventListener('input', (e) => {
+          this.filters.search = e.target.value.toLowerCase();
+          this.renderJobs();
+        });
+
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+          this.loadJobs();
+          this.loadStats();
+        });
+        
+        // Close modals when clicking the close button or outside the modal
+        document.querySelectorAll('.modal-close').forEach(button => {
+          button.addEventListener('click', () => {
+            document.querySelectorAll('.modal').forEach(modal => {
+              modal.style.display = 'none';
+            });
+          });
+        });
+        
+        document.querySelectorAll('.modal').forEach(modal => {
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+              modal.style.display = 'none';
+            }
+          });
+        });
+      }
+
+      filterJobs() {
+        return this.jobs.filter(job => {
+          const matchesStatus = this.filters.status === 'all' || job.status === this.filters.status;
+          const matchesPlatform = this.filters.platform === 'all' || job.platform === this.filters.platform;
+          const matchesSearch = !this.filters.search || 
+            job.title.toLowerCase().includes(this.filters.search) ||
+            job.company.toLowerCase().includes(this.filters.search);
+          
+          return matchesStatus && matchesPlatform && matchesSearch;
+        });
+      }
+
+      renderJobs() {
+        const container = document.getElementById('jobs-container');
+        const filteredJobs = this.filterJobs();
+        
+        if (filteredJobs.length === 0) {
+          container.innerHTML = '<p style="text-align:center;color:#64748b;padding:40px;">No jobs found</p>';
+          return;
+        }
+
+        container.innerHTML = filteredJobs.map(job => this.createJobCard(job)).join('');
+        
+        // Add event listeners to action buttons
+        filteredJobs.forEach(job => {
+          document.getElementById(`view-${job._id}`)?.addEventListener('click', () => this.viewJob(job));
+          document.getElementById(`prepare-${job._id}`)?.addEventListener('click', () => this.prepareJob(job));
+          document.getElementById(`apply-${job._id}`)?.addEventListener('click', () => this.applyJob(job));
+          document.getElementById(`edit-${job._id}`)?.addEventListener('click', () => this.editJob(job));
+        });
+      }
+
+      createJobCard(job) {
+        const statusBadge = this.getStatusBadge(job.status);
+        const platformBadge = this.getPlatformBadge(job.platform);
+        
+        return `
+          <div class="job-card">
+            <div class="job-header">
+              <div>
+                <h3 class="job-title">${job.title}</h3>
+                <div class="job-company">${job.company}</div>
+              </div>
+              <div>
+                ${statusBadge}
+                ${platformBadge}
+              </div>
+            </div>
+            
+            <div class="job-meta">
+              <div class="meta-item">
+                📍 ${job.location || 'UK'}
+              </div>
+              <div class="meta-item">
+                💰 ${job.salary || 'Not specified'}
+              </div>
+              <div class="meta-item">
+                📅 ${this.formatDate(job.scrapedAt)}
+              </div>
+            </div>
+            
+            <div class="job-description">
+              ${job.description?.substring(0, 200)}...
+            </div>
+            
+            <div class="job-actions">
+              <button class="btn-action btn-view" id="view-${job._id}">View Details</button>
+              ${job.status === 'pending' ? `<button class="btn-action btn-prepare" id="prepare-${job._id}">Prepare Application</button>` : ''}
+              ${job.status === 'ready_for_review' ? `
+                <button class="btn-action btn-edit" id="edit-${job._id}">Edit Resume/Email</button>
+                <button class="btn-action btn-apply" id="apply-${job._id}">Apply Now</button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      getStatusBadge(status) {
+        const badges = {
+          pending: '<span class="badge badge-pending">Pending</span>',
+          ready_for_review: '<span class="badge badge-ready">Ready to Apply</span>',
+          applied: '<span class="badge badge-applied">Applied</span>',
+          failed: '<span class="badge badge-failed">Failed</span>'
+        };
+        return badges[status] || badges.pending;
+      }
+
+      getPlatformBadge(platform) {
+        const classes = {
+          LinkedIn: 'platform-linkedin',
+          Reed: 'platform-reed',
+          Indeed: 'platform-indeed'
+        };
+        return `<span class="platform-badge ${classes[platform]}">${platform}</span>`;
+      }
+
+      formatDate(date) {
+        const d = new Date(date);
+        const now = new Date();
+        const diff = now - d;
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        
+        if (hours < 1) return 'Just now';
+        if (hours < 24) return `${hours}h ago`;
+        return `${Math.floor(hours / 24)}d ago`;
+      }
+
+      viewJob(job) {
+        const modal = document.getElementById('job-modal');
+        document.getElementById('modal-title').textContent = job.title;
+        document.getElementById('modal-company').textContent = job.company;
+        document.getElementById('modal-description').textContent = job.description;
+        document.getElementById('modal-url').href = job.url;
+        
+        modal.style.display = 'block';
+      }
+
+      async prepareJob(job) {
+        // In a real implementation, this would call your API
+        // const response = await fetch(`/api/applications/prepare/${job._id}`, {
+        //   method: 'POST'
+        // });
+        // 
+        // const result = await response.json();
+        
+        alert('✅ Application prepared! In a real implementation, this would generate a customized resume and email for this job.');
+        
+        // Update job status in our demo
+        job.status = 'ready_for_review';
+        this.renderJobs();
+      }
+
+      editJob(job) {
+        // Show edit modal with resume preview and email editor
+        const modal = document.getElementById('edit-modal');
+        
+        // Load generated email (in a real implementation, this would come from the API)
+        document.getElementById('email-subject').value = `Application for ${job.title} Position - ${job.company}`;
+        document.getElementById('email-body').value = `Dear Hiring Manager,
+
+I am writing to express my strong interest in the ${job.title} position at ${job.company}. With my background in cybersecurity and network security, I am confident I can contribute effectively to your team.
+
+My experience in security operations aligns well with your requirements, and I am particularly excited about the opportunity to work with your organization.
+
+I would welcome the opportunity to discuss how my skills and experience can benefit ${job.company}. Thank you for considering my application.
+
+Best regards`;
+
+        modal.style.display = 'block';
+        
+        // Setup save handler
+        document.getElementById('save-changes').onclick = () => {
+          alert('✅ Changes saved successfully! In a real implementation, this would update the job in the database.');
+          modal.style.display = 'none';
+        };
+      }
+
+      async applyJob(job) {
+        if (!confirm(`Apply to ${job.title} at ${job.company}?`)) return;
+        
+        // In a real implementation, this would call your API
+        // const response = await fetch(`/api/applications/apply/${job._id}`, {
+        //   method: 'POST'
+        // });
+        // 
+        // const result = await response.json();
+        
+        alert('✅ Application submitted successfully! In a real implementation, this would send your customized email with resume attached.');
+        
+        // Update job status in our demo
+        job.status = 'applied';
+        this.renderJobs();
+      }
+    }
+
+    // Initialize dashboard when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      new JobDashboard();
+    });
+  </script>
+</body>
+</html>

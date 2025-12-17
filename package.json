@@ -1,0 +1,46 @@
+{
+  "name": "job-automation-system",
+  "version": "1.0.0",
+  "description": "A complete 24/7 job automation system that scrapes jobs, optimizes resumes, generates custom emails, and provides a dashboard for reviewing and applying to jobs.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:cluster": "node cluster.js",
+    "start:production": "NODE_ENV=production node cluster.js",
+    "dev": "nodemon server.js",
+    "test": "jest",
+    "scrape:now": "node scripts/runScraper.js",
+    "setup": "node scripts/setup.js"
+  },
+  "keywords": [
+    "job",
+    "automation",
+    "scraper",
+    "linkedin",
+    "indeed",
+    "reed",
+    "cv",
+    "resume",
+    "email",
+    "ai",
+    "gemini"
+  ],
+  "author": "Chaitu CK",
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.1.3",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "express": "^4.18.2",
+    "mongoose": "^7.5.0",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.7",
+    "puppeteer": "^21.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
