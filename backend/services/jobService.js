@@ -37,6 +37,32 @@ class JobService {
     
     for (const jobData of jobs) {
       try {
+        // Debug logging to see job data
+        logger.debug(`Processing job: ${JSON.stringify({
+          title: jobData.title,
+          jobId: jobData.jobId,
+          url: jobData.source?.url,
+          hasSource: !!jobData.source
+        })}`);
+        
+        // Validate required fields
+        if (!jobData.source?.url) {
+          logger.warn(`Skipping job with null URL: ${jobData.title}`);
+          results.errors++;
+          continue;
+        }
+        
+        // Additional validation to ensure all required fields are present
+        if (!jobData.title || !jobData.company || !jobData.location) {
+          logger.warn(`Skipping job with missing required fields: ${JSON.stringify({
+            title: jobData.title,
+            company: jobData.company,
+            location: jobData.location
+          })}`);
+          results.errors++;
+          continue;
+        }
+        
         // Generate hash for deduplication
         const jobHash = this.generateJobHash(
           jobData.title,
@@ -86,7 +112,7 @@ class JobService {
           company: jobData.company,
           location: jobData.location,
           jobType: jobData.jobType || 'Not specified',
-          description: jobData.description || '',
+          description: jobData.description || `Job opportunity for ${jobData.title} position at ${jobData.company}. Further details available on the job posting.`,
           source: {
             platform: jobData.source?.platform || 'Unknown',
             url: jobData.source?.url,

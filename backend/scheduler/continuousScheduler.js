@@ -124,6 +124,12 @@ class ContinuousScheduler {
                         }
                         
                         if (jobs && jobs.length > 0) {
+                            // Debug logging to see what jobs are being passed
+                            logger.debug(`Passing ${jobs.length} jobs to jobService.saveJobs`);
+                            if (jobs.length > 0) {
+                                logger.debug(`First job sample: ${JSON.stringify(jobs[0], null, 2)}`);
+                            }
+                            
                             // Save jobs to database
                             const saved = await jobService.saveJobs(jobs);
                             
@@ -231,7 +237,7 @@ class ContinuousScheduler {
     }
     
     const result = await jobService.saveJobs(
-      reedJobs.map(job => ({ ...job, platform: 'Reed', status: 'pending' }))
+      reedJobs.map(job => ({ ...job, status: 'pending' }))
     );
     
     return result.newJobs;
@@ -248,7 +254,7 @@ class ContinuousScheduler {
     }
     
     const result = await jobService.saveJobs(
-      indeedJobs.map(job => ({ ...job, platform: 'Indeed', status: 'pending' }))
+      indeedJobs.map(job => ({ ...job, status: 'pending' }))
     );
     
     return result.newJobs;
@@ -265,7 +271,7 @@ class ContinuousScheduler {
     }
     
     const result = await jobService.saveJobs(
-      cwJobs.map(job => ({ ...job, platform: 'CWJobs', status: 'pending' }))
+      cwJobs.map(job => ({ ...job, status: 'pending' }))
     );
     
     return result.newJobs;
@@ -282,7 +288,7 @@ class ContinuousScheduler {
     }
     
     const result = await jobService.saveJobs(
-      totalJobs.map(job => ({ ...job, platform: 'TotalJobs', status: 'pending' }))
+      totalJobs.map(job => ({ ...job, status: 'pending' }))
     );
     
     return result.newJobs;
