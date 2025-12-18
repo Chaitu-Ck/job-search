@@ -3,81 +3,92 @@ const logger = require('../utils/logger');
 
 class EmailService {
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_APP_PASSWORD // Use app-specific password
-      }
-    });
+    this.transporter = null;
+    this.initialized = false;
   }
 
-  async sendApplicationEmail(to, subject, body, resumePath) {
+  async initialize() {
+    if (this.initialized) return;
+
     try {
-      const mailOptions = {
-        from: `"${process.env.YOUR_NAME}" <${process.env.EMAIL_USER}>`,
-        to: to,
-        subject: subject,
-        html: this.formatEmailHTML(body),
-        attachments: [
-          {
-            filename: 'Resume.pdf',
-            path: resumePath
-          }
-        ]
-      };
+      this.transporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.EMAIL_PORT, 10) || 587,
+        secure: false,
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
 
-      const info = await this.transporter.sendMail(mailOptions);
-      logger.info(`✅ Email sent successfully to ${to}: ${info.messageId}`);
-      
-      return {
-        success: true,
-        messageId: info.messageId
-      };
-
-    } catch (error) {
-      logger.error('❌ Email sending failed:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+      this.initialized = true;
+      logger.info('Email service initialized');
+    } catch (err) {
+      logger.error('Failed to initialize email service:', err);
+      throw err;
     }
-  }
-
-  formatEmailHTML(body) {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .email-container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .signature { margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px; }
-        </style>
-      </head>
-      <body>
-        <div class="email-container">
-          ${body.replace(/\n/g, '<br>')}
-          <div class="signature">
-            <p><strong>${process.env.YOUR_NAME}</strong><br>
-            ${process.env.YOUR_PHONE || ''}<br>
-            ${process.env.YOUR_LINKEDIN || ''}</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
   }
 
   async testConnection() {
+    await this.initialize();
+    
     try {
       await this.transporter.verify();
-      logger.info('✅ Email service connection verified');
+      logger.info('Email service connection verified');
       return true;
-    } catch (error) {
-      logger.error('❌ Email service connection failed:', error);
-      return false;
+    } catch (err) {
+      logger.error('Email connection test failed:', err);
+      throw err;
     }
+  }
+
+  async sendEmail({ to, subject, html, text }) {
+    await this.initialize();
+
+    if (!to || !subject || (!html && !text)) {
+      throw new Error('Missing required email fields: to, subject, and (html or text)');
+    }
+
+    try {
+      const info = await this.transporter.sendMail({
+        from: `"Job Automation" <${process.env.EMAIL_USER}>`,
+        to: Array.isArray(to) ? to.join(', ') : to,
+        subject,
+        text,
+        html,
+      });
+
+      logger.info(`Email sent: ${info.messageId}`, { to, subject });
+      return { success: true, messageId: info.messageId };
+    } catch (err) {
+      logger.error('Failed to send email:', err);
+      throw err;
+    }
+  }
+
+  async sendJobApplicationEmail(job, customMessage) {
+    const subject = `Application for ${job.title} at ${job.company}`;
+    const html = `
+      <h2>Job Application</h2>
+      <p>Dear Hiring Manager,</p>
+      <p>${customMessage || 'I am writing to express my strong interest in this position.'}</p>
+      <h3>Job Details:</h3>
+      <ul>
+        <li><strong>Position:</strong> ${job.title}</li>
+        <li><strong>Company:</strong> ${job.company}</li>
+        <li><strong>Location:</strong> ${job.location}</li>
+      </ul>
+      <p>Best regards,<br>${process.env.USER_NAME || 'Applicant'}</p>
+    `;
+
+    return this.sendEmail({
+      to: job.contactEmail || process.env.EMAIL_USER,
+      subject,
+      html,
+    });
   }
 }
 

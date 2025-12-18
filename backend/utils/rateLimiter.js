@@ -1,38 +1,64 @@
-class SmartRateLimiter {
-    constructor(requestsPerMinute = 10) {
-        this.requestsPerMinute = requestsPerMinute;
-        this.queue = [];
-        this.minDelay = (60 * 1000) / requestsPerMinute;
-        this.maxDelay = this.minDelay * 2;
-    }
-    
-    async throttle() {
-        const now = Date.now();
-        
-        // Remove old timestamps (older than 1 minute)
-        this.queue = this.queue.filter(time => now - time < 60000);
-        
-        // If we've hit the limit, wait
-        if (this.queue.length >= this.requestsPerMinute) {
-            const oldestRequest = this.queue[0];
-            const waitTime = 60000 - (now - oldestRequest);
-            await new Promise(resolve => setTimeout(resolve, waitTime + 1000));
+const logger = require('./logger');
+
+class RateLimiter {
+  constructor(maxRequests = 10, windowMs = 60000) {
+    this.maxRequests = maxRequests;
+    this.windowMs = windowMs;
+    this.requests = new Map();
+    this.cleanup();
+  }
+
+  cleanup() {
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, data] of this.requests.entries()) {
+        if (now - data.resetAt > this.windowMs) {
+          this.requests.delete(key);
         }
-        
-        // Add random delay to appear more human
-        const randomDelay = Math.random() * (this.maxDelay - this.minDelay) + this.minDelay;
-        await new Promise(resolve => setTimeout(resolve, randomDelay));
-        
-        this.queue.push(Date.now());
+      }
+    }, this.windowMs);
+  }
+
+  async checkLimit(identifier) {
+    const now = Date.now();
+    const data = this.requests.get(identifier);
+
+    if (!data || now > data.resetAt) {
+      this.requests.set(identifier, {
+        count: 1,
+        resetAt: now + this.windowMs,
+      });
+      return { allowed: true, remaining: this.maxRequests - 1 };
     }
-    
-    getStatus() {
-        return {
-            requestsInLastMinute: this.queue.length,
-            limit: this.requestsPerMinute,
-            remainingCapacity: this.requestsPerMinute - this.queue.length
-        };
+
+    if (data.count >= this.maxRequests) {
+      const waitTime = data.resetAt - now;
+      logger.warn(`Rate limit exceeded for ${identifier}, wait ${waitTime}ms`);
+      return { allowed: false, waitTime, remaining: 0 };
     }
+
+    data.count += 1;
+    return { allowed: true, remaining: this.maxRequests - data.count };
+  }
+
+  async wait(identifier) {
+    const result = await this.checkLimit(identifier);
+    if (!result.allowed) {
+      await new Promise(resolve => setTimeout(resolve, result.waitTime));
+      return this.wait(identifier);
+    }
+    return result;
+  }
+
+  reset(identifier) {
+    this.requests.delete(identifier);
+  }
+
+  resetAll() {
+    this.requests.clear();
+  }
 }
+
+module.exports = RateLimiter;
 
 module.exports = SmartRateLimiter;

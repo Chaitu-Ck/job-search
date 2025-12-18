@@ -1,213 +1,251 @@
-# 🚀 Job Automation System - Deployment Guide
+# Deployment Guide
 
 ## Prerequisites
+- Node.js >= 18.0.0
+- MongoDB >= 5.0
+- Git
 
-- Node.js 18+ installed
-- MongoDB installed and running
-- Redis installed and running
-- Gmail account with App Password enabled
+## Local Development Setup
 
-## Quick Start
+### 1. Clone Repository
+```
+git clone https://github.com/Chaitu-Ck/job-search.git
+cd job-search
+```
 
-### 1. Clone and Install
-
-```bash
-git clone https://github.com/Chaitu-Ck/job-1.git
-cd job-1
+### 2. Install Dependencies
+```
 npm install
 ```
 
-### 2. Run Setup Wizard
-
-```bash
-node scripts/setup.js
+### 3. Environment Configuration
+```
+cp .env.example .env
+# Edit .env with your credentials
 ```
 
-This will guide you through configuration and create your `.env` file.
+Required environment variables:
+- `MONGO_URI`: MongoDB connection string
+- `GEMINI_API_KEY`: Google Gemini API key
+- `EMAIL_USER`: Email address for sending applications
+- `EMAIL_PASS`: App-specific password
 
-### 3. Create Database Indexes
-
-```bash
-node scripts/createIndexes.js
+### 4. Database Setup
+```
+npm run setup
 ```
 
-### 4. Start MongoDB and Redis
-
-Terminal 1 - MongoDB
-```bash
-mongod
+### 5. Start Development Server
 ```
-
-Terminal 2 - Redis
-```bash
-redis-server
-```
-
-### 5. Start the Application
-
-Development mode
-```bash
 npm run dev
 ```
 
-Production mode with clustering
-```bash
-npm run start:cluster
-```
-
-### 6. Access the Dashboard
-
-Open your browser to:
-- **Dashboard**: http://localhost:3000/dashboard.html
-- **Queue Monitor**: http://localhost:3000/admin/queues
-- **Metrics**: http://localhost:3000/api/metrics
-- **Health Check**: http://localhost:3000/health
-
-## Gmail App Password Setup
-
-1. Go to Google Account settings
-2. Enable 2-Factor Authentication
-3. Go to Security → App Passwords
-4. Generate a new app password for "Mail"
-5. Copy the 16-character password to `.env` as `EMAIL_APP_PASSWORD`
-
-## Manual Testing
-
-### Test Scraping Manually
-
-```bash
-npm run scrape:now
-```
-
-### Test Single Platform
-
-In Node REPL:
-```javascript
-node
-> const scraper = require('./backend/scrapers/linkedinScraper')
-> scraper.scrapeJobs('SOC Analyst', 'United Kingdom').then(console.log)
-```
+The application will be available at http://localhost:3000
 
 ## Production Deployment
 
-### Using PM2
+### Option 1: Docker Deployment
 
-Install PM2
-```bash
-npm install -g pm2
+```
+# Build and start containers
+docker-compose up -d
+
+# View logs
+docker-compose logs -f app
+
+# Stop containers
+docker-compose down
 ```
 
-Start with clustering
-```bash
-pm2 start cluster.js --name job-automation -i max
+### Option 2: Manual Deployment
+
+```
+# Install production dependencies
+npm ci --only=production
+
+# Set environment
+export NODE_ENV=production
+
+# Start with cluster mode
+npm run start:production
 ```
 
-Save PM2 configuration
-```bash
-pm2 save
+### Option 3: Cloud Platform (Railway/Render/Heroku)
+
+1. **Railway**:
+```
+railway login
+railway init
+railway up
 ```
 
-Setup auto-restart on boot
-```bash
-pm2 startup
+2. **Render**:
+- Connect GitHub repository
+- Set build command: `npm install`
+- Set start command: `npm start`
+- Add environment variables
+
+3. **Heroku**:
+```
+heroku create job-automation-app
+heroku config:set NODE_ENV=production
+heroku config:set MONGO_URI=your_mongodb_url
+git push heroku main
 ```
 
-### Using Docker
+## Environment Variables
 
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-EXPOSE 3000
-CMD ["node", "cluster.js"]
+### Required
+```
+MONGO_URI=mongodb://localhost:27017/job-automation
+PORT=3000
+NODE_ENV=production
+GEMINI_API_KEY=your_api_key
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
 ```
 
-```bash
-docker build -t job-automation .
-docker run -d \
-  -p 3000:3000 \
-  --env-file .env \
-  --name job-automation \
-  job-automation
+### Optional
+```
+LOG_LEVEL=info
+ALLOWED_ORIGINS=https://yourdomain.com
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+SCRAPER_HEADLESS=true
+```
+
+## Database Indexes
+
+Run this after first deployment:
+```
+npm run setup
+```
+
+Or manually in MongoDB:
+```
+db.jobs.createIndex({ "source.url": 1 }, { unique: true })
+db.jobs.createIndex({ "status": 1, "quality.matchScore": -1 })
+db.jobs.createIndex({ "source.scrapedAt": -1 })
 ```
 
 ## Monitoring
 
-### View Logs
-
-Production logs
-```bash
-pm2 logs job-automation
+### Health Check
 ```
-
-Development logs
-```bash
-tail -f logs/combined.log
-```
-
-### Check System Health
-
-```bash
 curl http://localhost:3000/health
 ```
 
-### View Metrics
+### Logs
+```
+# Development
+tail -f logs/combined.log
 
-```bash
-curl http://localhost:3000/api/metrics
+# Production (Docker)
+docker-compose logs -f app
+
+# Production (PM2)
+pm2 logs job-automation
+```
+
+## Security Checklist
+
+- [ ] Change all default passwords
+- [ ] Set strong SESSION_SECRET
+- [ ] Enable HTTPS
+- [ ] Configure CORS properly
+- [ ] Set up firewall rules
+- [ ] Enable rate limiting
+- [ ] Regular security updates
+- [ ] Backup database regularly
+
+## Performance Optimization
+
+### PM2 Process Manager
+```
+npm install -g pm2
+
+pm2 start server.js -i max --name "job-automation"
+pm2 startup
+pm2 save
+```
+
+### Nginx Reverse Proxy
+```
+server {
+    listen 80;
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
 ```
 
 ## Troubleshooting
 
-### Server won't start
+### Issue: Puppeteer fails to launch
+```
+# Install Chromium dependencies
+sudo apt-get update
+sudo apt-get install -y chromium-browser
+```
 
-- Check MongoDB is running: `mongod --version`
-- Check Redis is running: `redis-cli ping`
-- Verify `.env` file exists and has correct values
+### Issue: MongoDB connection fails
+- Check MongoDB is running
+- Verify MONGO_URI format
+- Check firewall rules
+- Verify credentials
 
-### No jobs being scraped
+### Issue: Email sending fails
+- Use Gmail app-specific password
+- Enable "Less secure app access"
+- Check SMTP settings
 
-- Check scheduler is running in logs
-- Verify LinkedIn cookies are valid (if using LinkedIn scraper)
-- Test manual scraping: `npm run scrape:now`
+## Backup & Recovery
 
-### Email sending fails
+### Database Backup
+```
+mongodump --uri="mongodb://localhost:27017/job-automation" --out=backup/
+```
 
-- Verify Gmail App Password is correct
-- Ensure 2FA is enabled on Gmail account
-- Check EMAIL_USER and EMAIL_APP_PASSWORD in .env
-
-### Browser automation fails
-
-- Check Chromium installation
-- Verify sufficient memory (min 2GB)
-- Check browser pool settings in `.env`
+### Database Restore
+```
+mongorestore --uri="mongodb://localhost:27017/job-automation" backup/
+```
 
 ## Maintenance
 
-### Clear Old Jobs
-
-In MongoDB:
-```javascript
-use job-automation
-db.jobs.deleteMany({ scrapedAt: { $lt: new Date(Date.now() - 30*24*60*60*1000) } })
-```
-
-### Reset Queue
-
-Access Redis CLI:
-```bash
-redis-cli
-DEL bull:jobQueue:*
-```
-
 ### Update Dependencies
-
-```bash
+```
+npm outdated
 npm update
 npm audit fix
+```
+
+### Clean Old Jobs
+```
+// Run in MongoDB shell
+db.jobs.deleteMany({ 
+  status: "expired", 
+  "source.scrapedAt": { $lt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } 
+})
+```
+
+### Monitor Resource Usage
+```
+# CPU and Memory
+top
+
+# Disk usage
+df -h
+
+# MongoDB stats
+db.stats()
 ```
 
 ## Scaling

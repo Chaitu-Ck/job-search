@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+
+# Build
+dist/
+build/
+
+# Database
+dump.rdb
+*.db
+*.sqlite
+
+# Puppeteer
+.local-chromium/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Job automation specific
+job-1/
+resumes/generated/
+emails/generated/

@@ -1,118 +1,161 @@
 const express = require('express');
 const router = express.Router();
 const Job = require('../models/Job');
-const applicationService = require('../services/applicationService');
+const logger = require('../utils/logger');
+const { body, query, validationResult } = require('express-validator');
 
-// Get all jobs with filters
-router.get('/jobs', async (req, res) => {
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      error: 'Validation failed', 
+      details: errors.array() 
+    });
+  }
+  next();
+};
+
+router.get('/jobs', [
+  query('status').optional().isIn(['scraped', 'validated', 'keywords_extracted', 'resume_pending', 'resume_generated', 'email_pending', 'email_generated', 'ready_for_review', 'user_approved', 'user_rejected', 'applying', 'applied', 'failed', 'expired']),
+  query('platform').optional().isIn(['LinkedIn', 'Indeed', 'Reed', 'CWJobs', 'CyberSecurityJobs', 'GovUK', 'TotalJobs', 'StudentCircus', 'CompanyCareerPage']),
+  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+  query('skip').optional().isInt({ min: 0 }).toInt(),
+  handleValidationErrors,
+], async (req, res, next) => {
   try {
-    const { status, platform, search, limit = 100 } = req.query;
+    const { status, platform, search, limit = 50, skip = 0 } = req.query;
     
     const query = {};
-    if (status && status !== 'all') query.status = status;
-    if (platform && platform !== 'all') query.platform = platform;
+    if (status) query.status = status;
+    if (platform) query['source.platform'] = platform;
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
-        { company: { $regex: search, $options: 'i' } }
+        { company: { $regex: search, $options: 'i' } },
+        { location: { $regex: search, $options: 'i' } },
       ];
     }
-    
-    const jobs = await Job.find(query)
-      .sort({ scrapedAt: -1 })
-      .limit(parseInt(limit));
-    
-    res.json(jobs);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
 
-// Get job statistics
-router.get('/jobs/stats', async (req, res) => {
-  try {
-    const stats = await Job.aggregate([
-      {
-        $facet: {
-          total: [{ $count: 'count' }],
-          byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
-          byPlatform: [{ $group: { _id: '$platform', count: { $sum: 1 } } }]
-        }
-      }
+    const [jobs, total] = await Promise.all([
+      Job.find(query)
+        .sort({ 'source.scrapedAt': -1 })
+        .limit(limit)
+        .skip(skip)
+        .select('-errors -__v')
+        .lean(),
+      Job.countDocuments(query),
     ]);
-    
-    const result = {
-      total: stats[0].total[0]?.count || 0,
-      pending: stats[0].byStatus.find(s => s._id === 'pending')?.count || 0,
-      ready: stats[0].byStatus.find(s => s._id === 'ready_to_apply')?.count || 0,
-      applied: stats[0].byStatus.find(s => s._id === 'applied')?.count || 0,
-      platforms: stats[0].byPlatform
-    };
-    
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
 
-// Prepare application (CV + Email generation)
-router.post('/applications/prepare/:jobId', async (req, res) => {
-  try {
-    const result = await applicationService.processJobWithEmail(req.params.jobId);
     res.json({
       success: true,
-      message: 'Application prepared successfully',
-      data: result
+      jobs,
+      pagination: {
+        total,
+        limit,
+        skip,
+        hasMore: skip + limit < total,
+      },
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+  } catch (err) {
+    next(err);
   }
 });
 
-// Apply to job
-router.post('/applications/apply/:jobId', async (req, res) => {
+router.get('/jobs/:id', async (req, res, next) => {
   try {
-    const result = await applicationService.applyWithEmail(req.params.jobId);
-    res.json({
-      success: true,
-      message: 'Application submitted successfully',
-      data: result
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-
-// Update job (for editing email/resume)
-router.patch('/jobs/:jobId', async (req, res) => {
-  try {
-    const job = await Job.findByIdAndUpdate(
-      req.params.jobId,
-      { $set: req.body },
-      { new: true }
-    );
-    res.json(job);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get resume preview
-router.get('/resumes/:jobId/preview', async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.jobId);
-    if (!job || !job.optimizedCV) {
-      return res.status(404).send('Resume not found');
+    const job = await Job.findById(req.params.id).lean();
+    
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
     }
-    res.sendFile(job.optimizedCV);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+
+    res.json({ success: true, job });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid job ID' });
+    }
+    next(err);
+  }
+});
+
+router.patch('/jobs/:id/status', [
+  body('status').isIn(['user_approved', 'user_rejected', 'applying', 'applied']),
+  handleValidationErrors,
+], async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    
+    const job = await Job.findByIdAndUpdate(
+      req.params.id,
+      { 
+        status,
+        'userActions.reviewedAt': new Date(),
+        ...(status === 'user_approved' && { 'userActions.approvedAt': new Date() }),
+        ...(status === 'user_rejected' && { 'userActions.rejectedAt': new Date() }),
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    logger.info(`Job ${job._id} status updated to ${status}`);
+    res.json({ success: true, job });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/stats', async (req, res, next) => {
+  try {
+    const [
+      total,
+      byStatus,
+      byPlatform,
+      recentJobs,
+    ] = await Promise.all([
+      Job.countDocuments(),
+      Job.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      Job.aggregate([
+        { $group: { _id: '$source.platform', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      Job.find()
+        .sort({ 'source.scrapedAt': -1 })
+        .limit(5)
+        .select('title company source.platform source.scrapedAt')
+        .lean(),
+    ]);
+
+    const stats = {
+      total,
+      byStatus: Object.fromEntries(byStatus.map(s => [s._id, s.count])),
+      byPlatform: Object.fromEntries(byPlatform.map(p => [p._id, p.count])),
+      recentJobs,
+    };
+
+    res.json({ success: true, stats });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/jobs/:id', async (req, res, next) => {
+  try {
+    const job = await Job.findByIdAndDelete(req.params.id);
+    
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    logger.info(`Job ${job._id} deleted`);
+    res.json({ success: true, message: 'Job deleted' });
+  } catch (err) {
+    next(err);
   }
 });
 
