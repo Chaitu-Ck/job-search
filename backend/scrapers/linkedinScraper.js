@@ -1,30 +1,67 @@
-// Placeholder LinkedIn scraper
-class LinkedInScraper {
-  async scrapeMultipleSearches(keywords, location) {
-    // This is a placeholder implementation
-    // In a real implementation, this would use Puppeteer or similar
-    console.log(`Scraping LinkedIn for keywords: ${keywords.join(', ')} in ${location}`);
+const axios = require('axios');
+const logger = require('../utils/logger');
+
+class LinkedInAlternative {
+    constructor() {
+        this.apiKey = process.env.LINKEDIN_API_KEY; // If using paid API
+    }
     
-    // Return sample data for demonstration
-    return [
-      {
-        title: 'SOC Analyst',
-        company: 'Tech Corp',
-        location: 'London, UK',
-        url: 'https://linkedin.com/jobs/view/soc-analyst-at-tech-corp-12345',
-        description: 'Looking for a skilled SOC Analyst to join our security operations team.',
-        platform: 'LinkedIn'
-      },
-      {
-        title: 'Security Analyst',
-        company: 'Finance Ltd',
-        location: 'Manchester, UK',
-        url: 'https://linkedin.com/jobs/view/security-analyst-at-finance-ltd-67890',
-        description: 'Join our cybersecurity team as a Security Analyst.',
-        platform: 'LinkedIn'
-      }
-    ];
-  }
+    async scrapeMultipleSearches(keywords, location) {
+        logger.warn('⚠️  LinkedIn direct scraping disabled (TOS violation risk)');
+        logger.info('💡 Recommendation: Use LinkedIn Jobs API or focus on Indeed/Reed');
+        
+        // Option 1: Return empty and rely on other sources
+        return [];
+        
+        // Option 2: Use LinkedIn Jobs API (requires developer account)
+        // if (this.apiKey) {
+        //     return await this.useLinkedInAPI(keywords, location);
+        // }
+        
+        // Option 3: Use third-party API like Proxycurl
+        // if (process.env.PROXYCURL_API_KEY) {
+        //     return await this.useProxycurl(keywords, location);
+        // }
+    }
+    
+    async useLinkedInAPI(keywords, location) {
+        // Implement official LinkedIn Jobs API
+        // https://developer.linkedin.com/
+        logger.info('Using LinkedIn official API');
+        // Implementation here
+        return [];
+    }
+    
+    async useProxycurl(keywords, location) {
+        // Use Proxycurl API for LinkedIn data
+        // https://nubela.co/proxycurl/
+        try {
+            const response = await axios.get('https://nubela.co/proxycurl/api/linkedin/job/search', {
+                params: {
+                    keyword: keywords,
+                    location: location,
+                    geo_id: '101165590' // UK LinkedIn geo ID
+                },
+                headers: {
+                    'Authorization': `Bearer ${process.env.PROXYCURL_API_KEY}`
+                }
+            });
+            
+            return response.data.results.map(job => ({
+                title: job.job_title,
+                company: job.company,
+                location: job.location,
+                url: job.job_url,
+                description: job.job_description,
+                platform: 'LinkedIn',
+                scrapedAt: new Date()
+            }));
+            
+        } catch (error) {
+            logger.error('Proxycurl API error:', error.message);
+            return [];
+        }
+    }
 }
 
-module.exports = new LinkedInScraper();
+module.exports = new LinkedInAlternative();

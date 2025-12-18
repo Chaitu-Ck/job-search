@@ -14,169 +14,212 @@ const jobService = require('../services/jobService');
 const metrics = require('../utils/metrics');
 
 class ContinuousScheduler {
-  constructor() {
-    this.isRunning = false;
-    this.searchKeywords = SEARCH_KEYWORDS; // Use expanded keywords from config
-    this.location = 'United Kingdom';
-  }
-
-  // Run every 6 hours: 0 */6 * * *
-  startScheduler() {
-    logger.info('🚀 Starting 24/7 Continuous Job Scheduler');
+    constructor() {
+        this.isRunning = false;
+        this.keywords = process.env.SEARCH_KEYWORDS?.split(',') || SEARCH_KEYWORDS;
+        this.location = process.env.SEARCH_LOCATION || 'United Kingdom';
+        
+        this.scrapers = [
+            { name: 'Indeed', scraper: indeedScraper, enabled: process.env.ENABLE_INDEED !== 'false' },
+            { name: 'Reed', scraper: reedScraper, enabled: process.env.ENABLE_REED !== 'false' },
+            { name: 'CWJobs', scraper: cwjobsScraper, enabled: process.env.ENABLE_CWJOBS !== 'false' },
+            { name: 'TotalJobs', scraper: totaljobsScraper, enabled: process.env.ENABLE_TOTALJOBS !== 'false' },
+            { name: 'LinkedIn', scraper: linkedinScraper, enabled: process.env.ENABLE_LINKEDIN === 'true' },
+            { name: 'Company Pages', scraper: companyPagesScraper, enabled: true }
+        ];
+    }
     
-    // Run immediately on startup
-    this.runScrapingCycle();
+    async runScrapingJob() {
+        if (this.isRunning) {
+            logger.warn('⚠️  Scraping job already running. Skipping this cycle.');
+            return;
+        }
+        
+        this.isRunning = true;
+        logger.info('🚀 ========== STARTING SCRAPING JOB ==========');
+        
+        const startTime = Date.now();
+        let totalJobs = 0;
+        const results = {};
+        
+        try {
+            for (const keyword of this.keywords) {
+                logger.info(`\n📋 Scraping for keyword: "${keyword}"`);
+                
+                for (const { name, scraper, enabled } of this.scrapers) {
+                    if (!enabled) {
+                        logger.info(`⏭️  Skipping ${name} (disabled)`);
+                        continue;
+                    }
+                    
+                    try {
+                        logger.info(`\n🔍 Running ${name} scraper...`);
+                        
+                        const jobs = await scraper.scrapeJobs(keyword, this.location);
+                        
+                        if (jobs && jobs.length > 0) {
+                            // Save jobs to database
+                            const saved = await jobService.saveJobs(jobs);
+                            
+                            results[`${name}_${keyword}`] = {
+                                found: jobs.length,
+                                saved: saved.newJobs,
+                                duplicates: saved.duplicates
+                            };
+                            
+                            totalJobs += saved.newJobs;
+                            
+                            logger.info(`✅ ${name}: Found ${jobs.length} jobs, saved ${saved.newJobs} new (${saved.duplicates} duplicates)`);
+                        } else {
+                            logger.warn(`⚠️  ${name}: No jobs found for "${keyword}"`);
+                            results[`${name}_${keyword}`] = { found: 0, saved: 0, duplicates: 0 };
+                        }
+                        
+                        // Delay between different scrapers
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                        
+                    } catch (error) {
+                        logger.error(`❌ ${name} scraper failed for "${keyword}":`, error.message);
+                        results[`${name}_${keyword}`] = { error: error.message };
+                    }
+                }
+                
+                // Delay between keywords
+                await new Promise(resolve => setTimeout(resolve, 10000));
+            }
+            
+        } catch (error) {
+            logger.error('❌ Critical error in scraping job:', error);
+        } finally {
+            this.isRunning = false;
+            
+            const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+            
+            logger.info('\n========== SCRAPING JOB COMPLETE ==========');
+            logger.info(`⏱️  Duration: ${duration}s`);
+            logger.info(`📊 Total new jobs saved: ${totalJobs}`);
+            logger.info(`📈 Results summary:`, JSON.stringify(results, null, 2));
+            logger.info('============================================\n');
+        }
+    }
     
-    // Schedule for every 6 hours
-    cron.schedule('0 */6 * * *', async () => {
-      logger.info('⏰ Scheduled scraping cycle triggered');
-      await this.runScrapingCycle();
-    });
-    
-    // Daily cleanup at 3 AM
-    cron.schedule('0 3 * * *', async () => {
-      await this.cleanupOldJobs();
-    });
-  }
+    startScheduler() {
+        logger.info('🕐 Starting continuous job scheduler...');
+        logger.info(`📋 Keywords: ${this.keywords.join(', ')}`);
+        logger.info(`📍 Location: ${this.location}`);
+        logger.info(`🔄 Schedule: Every 6 hours`);
+        
+        // Run immediately on startup
+        setTimeout(() => {
+            logger.info('▶️  Running initial scraping job...');
+            this.runScrapingJob();
+        }, 5000); // 5 second delay after server start
+        
+        // Schedule to run every 6 hours
+        cron.schedule('0 */6 * * *', () => {
+            logger.info('⏰ Scheduled scraping job triggered');
+            this.runScrapingJob();
+        });
+        
+        logger.info('✅ Continuous scheduler started successfully!');
+        logger.info('💡 Next run: In 6 hours');
+    }
 
   async runScrapingCycle() {
-    if (this.isRunning) {
-      logger.warn('⚠️ Scraping cycle already running, skipping...');
-      return;
-    }
-
-    this.isRunning = true;
-    const startTime = Date.now();
-    
-    try {
-      logger.info('🔍 Starting multi-platform job scraping cycle');
-      
-      // Scrape from all platforms concurrently
-      const results = await Promise.allSettled([
-        this.scrapeLinkedIn(),
-        this.scrapeReed(),
-        this.scrapeIndeed(),
-        this.scrapeCWJobs(),
-        this.scrapeTotalJobs(),
-        this.scrapeCompanyPages()
-      ]);
-      
-      // Process results
-      let totalJobs = 0;
-      const platforms = ['LinkedIn', 'Reed', 'Indeed', 'CWJobs', 'TotalJobs', 'Company Pages'];
-      
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          totalJobs += result.value;
-          logger.info(`✅ ${platforms[index]}: ${result.value} jobs scraped`);
-        } else {
-          logger.error(`❌ ${platforms[index]} failed:`, result.reason);
-        }
-      });
-      
-      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      logger.info(`✅ Scraping cycle complete: ${totalJobs} total jobs in ${duration}s`);
-      
-      metrics.recordJobProcessed(Date.now() - startTime);
-      
-    } catch (error) {
-      logger.error('❌ Scraping cycle failed:', error);
-      metrics.recordJobFailed();
-    } finally {
-      this.isRunning = false;
-    }
+    // Alias for backward compatibility
+    return await this.runScrapingJob();
   }
 
   async scrapeLinkedIn() {
     // Use top 10 keywords for LinkedIn
-    const topKeywords = this.searchKeywords.slice(0, 10);
+    const topKeywords = this.keywords.slice(0, 10);
     const jobs = await linkedinScraper.scrapeMultipleSearches(topKeywords, this.location);
     
-    const result = await jobService.bulkInsertJobs(
+    const result = await jobService.saveJobs(
       jobs.map(job => ({ ...job, platform: 'LinkedIn', status: 'pending' }))
     );
     
-    return result.inserted;
+    return result.newJobs;
   }
 
   async scrapeReed() {
     const reedJobs = [];
     // Use top 8 keywords for Reed
-    const keywords = this.searchKeywords.slice(0, 8);
+    const keywords = this.keywords.slice(0, 8);
     
     for (const keyword of keywords) {
       const jobs = await reedScraper.scrapeJobs(keyword, this.location);
       reedJobs.push(...jobs);
     }
     
-    const result = await jobService.bulkInsertJobs(
+    const result = await jobService.saveJobs(
       reedJobs.map(job => ({ ...job, platform: 'Reed', status: 'pending' }))
     );
     
-    return result.inserted;
+    return result.newJobs;
   }
 
   async scrapeIndeed() {
     const indeedJobs = [];
     // Use top 8 keywords for Indeed
-    const keywords = this.searchKeywords.slice(0, 8);
+    const keywords = this.keywords.slice(0, 8);
     
     for (const keyword of keywords) {
       const jobs = await indeedScraper.scrapeJobs(keyword, this.location);
       indeedJobs.push(...jobs);
     }
     
-    const result = await jobService.bulkInsertJobs(
+    const result = await jobService.saveJobs(
       indeedJobs.map(job => ({ ...job, platform: 'Indeed', status: 'pending' }))
     );
     
-    return result.inserted;
+    return result.newJobs;
   }
 
   async scrapeCWJobs() {
     const cwJobs = [];
     // Use top 5 keywords for CWJobs (IT/Tech specialist)
-    const keywords = this.searchKeywords.slice(0, 5);
+    const keywords = this.keywords.slice(0, 5);
     
     for (const keyword of keywords) {
       const jobs = await cwjobsScraper.scrapeJobs(keyword, this.location);
       cwJobs.push(...jobs);
     }
     
-    const result = await jobService.bulkInsertJobs(
+    const result = await jobService.saveJobs(
       cwJobs.map(job => ({ ...job, platform: 'CWJobs', status: 'pending' }))
     );
     
-    return result.inserted;
+    return result.newJobs;
   }
 
   async scrapeTotalJobs() {
     const totalJobs = [];
     // Use top 5 keywords for TotalJobs
-    const keywords = this.searchKeywords.slice(0, 5);
+    const keywords = this.keywords.slice(0, 5);
     
     for (const keyword of keywords) {
       const jobs = await totaljobsScraper.scrapeJobs(keyword, this.location);
       totalJobs.push(...jobs);
     }
     
-    const result = await jobService.bulkInsertJobs(
+    const result = await jobService.saveJobs(
       totalJobs.map(job => ({ ...job, platform: 'TotalJobs', status: 'pending' }))
     );
     
-    return result.inserted;
+    return result.newJobs;
   }
 
   async scrapeCompanyPages() {
     // Use top 5 keywords for company pages
-    const keywords = this.searchKeywords.slice(0, 5);
+    const keywords = this.keywords.slice(0, 5);
     const jobs = await companyPagesScraper.scrapeAllCompanies(keywords);
     
-    const result = await jobService.bulkInsertJobs(
+    const result = await jobService.saveJobs(
       jobs.map(job => ({ ...job, platform: 'Company Career Page', status: 'pending' }))
     );
     
-    return result.inserted;
+    return result.newJobs;
   }
 
   async cleanupOldJobs() {

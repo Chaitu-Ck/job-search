@@ -1,0 +1,9 @@
+{"level":"info","message":"🚀 Starting Indeed scraper for \"SOC Analyst\" in UK","timestamp":"2025-12-17T14:01:15.534Z"}
+{"level":"info","message":"🔍 Scraping Indeed page 1/5 (attempt 1/3)","timestamp":"2025-12-17T14:01:30.963Z"}
+{"level":"warn","message":"⚠️  Indeed blocked request (403)","timestamp":"2025-12-17T14:01:31.056Z"}
+{"level":"error","message":"❌ Indeed blocked scraper. Consider using proxy rotation.","timestamp":"2025-12-17T14:01:31.057Z"}
+{"level":"info","message":"🚀 Starting Reed scraper for \"Security Analyst\" in UK","timestamp":"2025-12-17T14:01:37.267Z"}
+{"level":"info","message":"🔍 Scraping Reed page 1/5 (attempt 1/3)","timestamp":"2025-12-17T14:01:52.277Z"}
+{"level":"warn","message":"⚠️  No jobs found on page 1. Stopping.","timestamp":"2025-12-17T14:01:52.663Z"}
+{"level":"info","message":"✅ Reed scraping complete: 0 jobs found for \"Security Analyst\"","timestamp":"2025-12-17T14:01:52.663Z"}
+{"blockedRequests":0,"failedRequests":0,"jobsFound":0,"level":"info","message":"📊 Metrics:","successfulRequests":0,"timestamp":"2025-12-17T14:01:52.663Z","totalRequests":1}
