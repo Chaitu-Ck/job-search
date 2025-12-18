@@ -7,11 +7,13 @@ async function createIndexes() {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ Connected to MongoDB');
     
-    console.log('🔧 Creating optimized indexes...');
+    console.log('🗑️  Dropping existing jobs collection...');
     
-    // Drop existing indexes
-    await Job.collection.dropIndexes();
-    console.log('🗑️  Dropped old indexes');
+    // Drop the entire collection to start fresh
+    await Job.collection.drop();
+    console.log('✅ Dropped jobs collection');
+    
+    console.log('🔧 Creating optimized indexes...');
     
     // Create new indexes
     await Job.ensureIndexes();
@@ -28,7 +30,7 @@ async function createIndexes() {
     process.exit(0);
     
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('❌ Error:', error.message);
     process.exit(1);
   }
 }

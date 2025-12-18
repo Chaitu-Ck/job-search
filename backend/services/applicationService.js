@@ -73,8 +73,8 @@ class ApplicationService {
     } catch (error) {
       logger.error('Job processing failed:', error);
       job.status = 'failed';
-      job.errors = job.errors || [];
-      job.errors.push({
+      job.errorLogs = job.errorLogs || [];
+      job.errorLogs.push({
         stage: 'application_preparation',
         message: error.message,
         timestamp: new Date()
@@ -130,8 +130,8 @@ class ApplicationService {
     } catch (error) {
       logger.error('Email application failed:', error);
       job.status = 'failed';
-      job.errors = job.errors || [];
-      job.errors.push({
+      job.errorLogs = job.errorLogs || [];
+      job.errorLogs.push({
         stage: 'email_application',
         message: error.message,
         timestamp: new Date()

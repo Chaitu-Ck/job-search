@@ -52,7 +52,8 @@ class IndeedScraper {
                     await this.randomDelay(); // Add random delay
                     
                     const start = page * 10;
-                    const searchURL = `${this.baseURL}/jobs?q=${encodeURIComponent(keywords)}&l=${encodeURIComponent(location)}&start=${start}`;
+                    // Add date filter: &fromage=7 (jobs from last 7 days)
+                    const searchURL = `${this.baseURL}/jobs?q=${encodeURIComponent(keywords)}&l=${encodeURIComponent(location)}&start=${start}&fromage=7`;
                     
                     logger.info(`🔍 Scraping Indeed page ${page + 1}/${maxPages} (attempt ${retries + 1}/${maxRetries})`);
                     
@@ -81,7 +82,8 @@ class IndeedScraper {
                     if (response.status === 403) {
                         logger.warn('⚠️  Indeed blocked request (403)');
                         this.metrics.blockedRequests++;
-                        throw new Error('BLOCKED');
+                        // Instead of throwing error, return empty array to continue processing
+                        return jobs;
                     }
                     
                     if (response.status === 429) {
@@ -124,14 +126,19 @@ class IndeedScraper {
                             // Validate required fields
                             if (title && url) {
                                 jobs.push({
+                                    jobId: `indeed_${jobKey}`,
                                     title,
                                     company: company || 'Not specified',
                                     location: location || 'UK',
-                                    url,
                                     description: summary,
-                                    salary: salary || null,
-                                    platform: 'Indeed',
-                                    scrapedAt: new Date()
+                                    salary: salary || undefined,
+                                    source: {
+                                        platform: 'Indeed',
+                                        url,
+                                        scrapedAt: new Date()
+                                    },
+                                    postedDate: new Date(), // Indeed doesn't provide exact dates easily
+                                    status: 'scraped'
                                 });
                                 
                                 this.metrics.jobsFound++;

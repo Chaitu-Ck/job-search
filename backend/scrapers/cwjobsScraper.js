@@ -29,13 +29,13 @@ class CWJobsScraper {
         
         const $ = cheerio.load(response.data);
         
-        $('.job-result, .job, article[data-job-id]').each((i, element) => {
-          const title = $(element).find('.job-title, h2 a').first().text().trim();
-          const company = $(element).find('.company, .recruiter-name').first().text().trim();
-          const location = $(element).find('.location').first().text().trim();
+        $('.job-result, .job, article[data-job-id], .job-card, .search-card').each((i, element) => {
+          const title = $(element).find('.job-title, h2 a, .title, [data-testid="job-title"]').first().text().trim();
+          const company = $(element).find('.company, .recruiter-name, .employer, [data-testid="company-name"]').first().text().trim();
+          const location = $(element).find('.location, .job-location, [data-testid="job-location"]').first().text().trim();
           const url = $(element).find('a').first().attr('href');
-          const salary = $(element).find('.salary').first().text().trim();
-          const description = $(element).find('.job-description, .summary').first().text().trim();
+          const salary = $(element).find('.salary, .salary-range, .package').first().text().trim();
+          const description = $(element).find('.job-description, .summary, .job-summary, .description').first().text().trim();
           
           if (title && url) {
             jobs.push({

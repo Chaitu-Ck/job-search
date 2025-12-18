@@ -29,12 +29,13 @@ class TotalJobsScraper {
         
         const $ = cheerio.load(response.data);
         
-        $('.job, .job-result, article').each((i, element) => {
-          const title = $(element).find('.job-title, h2').first().text().trim();
-          const company = $(element).find('.company').first().text().trim();
-          const location = $(element).find('.location').first().text().trim();
+        $('.job, .job-result, article, .job-card, .search-card').each((i, element) => {
+          const title = $(element).find('.job-title, h2, .title, [data-testid="job-title"]').first().text().trim();
+          const company = $(element).find('.company, .employer, [data-testid="company-name"]').first().text().trim();
+          const location = $(element).find('.location, .job-location, [data-testid="job-location"]').first().text().trim();
           const url = $(element).find('a').first().attr('href');
-          const salary = $(element).find('.salary').first().text().trim();
+          const salary = $(element).find('.salary, .salary-range, .package').first().text().trim();
+          const description = $(element).find('.job-description, .summary, .job-summary, .description').first().text().trim();
           
           if (title && url) {
             jobs.push({
@@ -43,6 +44,7 @@ class TotalJobsScraper {
               location,
               url: url.startsWith('http') ? url : `${this.baseURL}${url}`,
               salary,
+              description: description || '',
               platform: 'TotalJobs',
               scrapedAt: new Date()
             });

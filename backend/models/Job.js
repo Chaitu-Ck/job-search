@@ -55,7 +55,7 @@ const JobSchema = new mongoose.Schema({
   source: {
     platform: {
       type: String,
-      enum: ['LinkedIn', 'Indeed', 'Reed', 'CWJobs', 'CyberSecurityJobs', 'GovUK', 'TotalJobs', 'CompanyCareerPage'],
+      enum: ['LinkedIn', 'Indeed', 'Reed', 'CWJobs', 'CyberSecurityJobs', 'GovUK', 'TotalJobs', 'CompanyCareerPage', 'StudentCircus'],
       required: true
     },
     url: {
@@ -199,7 +199,7 @@ const JobSchema = new mongoose.Schema({
   },
   
   lastProcessedAt: Date,
-  errors: [{
+  errorLogs: [{
     stage: String,
     message: String,
     timestamp: Date

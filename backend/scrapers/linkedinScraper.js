@@ -11,6 +11,9 @@ class LinkedInAlternative {
         logger.info('💡 Recommendation: Use LinkedIn Jobs API or focus on Indeed/Reed');
         
         // Option 1: Return empty and rely on other sources
+        // But let's try a safer approach using job search aggregators
+        
+        // For now, return empty array as direct scraping is disabled
         return [];
         
         // Option 2: Use LinkedIn Jobs API (requires developer account)

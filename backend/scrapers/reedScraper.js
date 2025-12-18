@@ -51,7 +51,11 @@ class ReedScraper {
                     await this.rateLimiter.throttle();
                     await this.randomDelay(); // Add random delay
                     
-                    const searchURL = `${this.baseURL}/jobs/${encodeURIComponent(keywords)}-jobs-in-${encodeURIComponent(location)}?pageno=${page}`;
+                    // Updated URL structure for Reed
+                    let searchURL = `${this.baseURL}/jobs/${encodeURIComponent(keywords)}-jobs-in-${encodeURIComponent(location)}`;
+                    if (page > 1) {
+                        searchURL += `?pageno=${page}`;
+                    }
                     
                     logger.info(`🔍 Scraping Reed page ${page}/${maxPages} (attempt ${retries + 1}/${maxRetries})`);
                     
@@ -102,7 +106,7 @@ class ReedScraper {
                     }
                     
                     // Multiple selector fallbacks for robustness
-                    const jobElements = $('.job-result, .job-card, .job-listing');
+                    const jobElements = $('.job-result, .job-card, .job-listing, .job, article');
                     
                     if (jobElements.length === 0) {
                         logger.warn(`⚠️  No jobs found on page ${page}. Stopping.`);
@@ -112,24 +116,29 @@ class ReedScraper {
                     jobElements.each((i, element) => {
                         try {
                             // Multiple fallback selectors
-                            const title = $(element).find('.job-result-heading__title, .job-title, h2.title, h3.title').first().text().trim();
-                            const company = $(element).find('.job-result-heading__company, .company, .employer').first().text().trim();
-                            const location = $(element).find('.job-result-heading__location, .location, .job-location').first().text().trim();
+                            const title = $(element).find('.job-result-heading__title, .job-title, h2.title, h3.title, .title').first().text().trim();
+                            const company = $(element).find('.job-result-heading__company, .company, .employer, [data-testid="company-name"]').first().text().trim();
+                            const location = $(element).find('.job-result-heading__location, .location, .job-location, [data-testid="job-location"]').first().text().trim();
                             const url = this.baseURL + $(element).find('a').first().attr('href');
-                            const salary = $(element).find('.job-result-heading__salary, .salary, .job-salary').first().text().trim();
-                            const description = $(element).find('.job-result-description__details, .job-description, .description').first().text().trim();
+                            const salary = $(element).find('.job-result-heading__salary, .salary, .job-salary, .salary-range').first().text().trim();
+                            const description = $(element).find('.job-result-description__details, .job-description, .description, .job-summary').first().text().trim();
                             
                             // Validate required fields
                             if (title && url) {
                                 jobs.push({
+                                    jobId: `reed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                                     title,
                                     company: company || 'Not specified',
                                     location: location || 'UK',
-                                    url,
-                                    salary: salary || null,
                                     description: description || '',
-                                    platform: 'Reed',
-                                    scrapedAt: new Date()
+                                    salary: salary || undefined,
+                                    source: {
+                                        platform: 'Reed',
+                                        url,
+                                        scrapedAt: new Date()
+                                    },
+                                    postedDate: new Date(),
+                                    status: 'scraped'
                                 });
                                 
                                 this.metrics.jobsFound++;
