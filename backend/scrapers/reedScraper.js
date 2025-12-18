@@ -84,7 +84,8 @@ class ReedScraper {
                     if (response.status === 403) {
                         logger.warn('⚠️  Reed blocked request (403)');
                         this.metrics.blockedRequests++;
-                        throw new Error('BLOCKED');
+                        // Instead of throwing error, return empty array to continue processing
+                        return jobs;
                     }
                     
                     if (response.status === 429) {
@@ -105,48 +106,51 @@ class ReedScraper {
                         throw new Error('CAPTCHA_DETECTED');
                     }
                     
-                    // Multiple selector fallbacks for robustness
-                    const jobElements = $('.job-result, .job-card, .job-listing, .job, article');
+                    // Extract job data from JSON embedded in the page
+                    const jobDataPattern = /"jobDetail":\{"jobId":[0-9]+,[^\}]*"jobTitle":"[^"]*"/g;
+                    const jobMatches = response.data.match(jobDataPattern);
                     
-                    if (jobElements.length === 0) {
-                        logger.warn(`⚠️  No jobs found on page ${page}. Stopping.`);
+                    if (jobMatches && jobMatches.length > 0) {
+                        logger.info(`✅ Found ${jobMatches.length} jobs in JSON data`);
+                        
+                        for (const match of jobMatches) {
+                            try {
+                                // Extract job details from the JSON string
+                                const jobIdMatch = match.match(/"jobId":([0-9]+)/);
+                                const titleMatch = match.match(/"jobTitle":"([^"]+)"/);
+                                
+                                if (jobIdMatch && titleMatch) {
+                                    const jobId = jobIdMatch[1];
+                                    const title = titleMatch[1].replace(/\\u0026/g, '&').replace(/\\u0027/g, "'");
+                                    
+                                    // Create job URL
+                                    const url = `${this.baseURL}/job/${jobId}`;
+                                    
+                                    jobs.push({
+                                        jobId: `reed_${jobId}`,
+                                        title,
+                                        company: 'Not specified',
+                                        location: 'UK',
+                                        description: '',
+                                        source: {
+                                            platform: 'Reed',
+                                            url,
+                                            scrapedAt: new Date()
+                                        },
+                                        postedDate: new Date(),
+                                        status: 'scraped'
+                                    });
+                                    
+                                    this.metrics.jobsFound++;
+                                }
+                            } catch (parseError) {
+                                logger.debug(`Error parsing job from JSON: ${parseError.message}`);
+                            }
+                        }
+                    } else {
+                        logger.warn(`⚠️  No jobs found in JSON data on page ${page}. Stopping.`);
                         break;
                     }
-                    
-                    jobElements.each((i, element) => {
-                        try {
-                            // Multiple fallback selectors
-                            const title = $(element).find('.job-result-heading__title, .job-title, h2.title, h3.title, .title').first().text().trim();
-                            const company = $(element).find('.job-result-heading__company, .company, .employer, [data-testid="company-name"]').first().text().trim();
-                            const location = $(element).find('.job-result-heading__location, .location, .job-location, [data-testid="job-location"]').first().text().trim();
-                            const url = this.baseURL + $(element).find('a').first().attr('href');
-                            const salary = $(element).find('.job-result-heading__salary, .salary, .job-salary, .salary-range').first().text().trim();
-                            const description = $(element).find('.job-result-description__details, .job-description, .description, .job-summary').first().text().trim();
-                            
-                            // Validate required fields
-                            if (title && url) {
-                                jobs.push({
-                                    jobId: `reed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                                    title,
-                                    company: company || 'Not specified',
-                                    location: location || 'UK',
-                                    description: description || '',
-                                    salary: salary || undefined,
-                                    source: {
-                                        platform: 'Reed',
-                                        url,
-                                        scrapedAt: new Date()
-                                    },
-                                    postedDate: new Date(),
-                                    status: 'scraped'
-                                });
-                                
-                                this.metrics.jobsFound++;
-                            }
-                        } catch (parseError) {
-                            logger.debug(`Error parsing job element: ${parseError.message}`);
-                        }
-                    });
                     
                     this.metrics.successfulRequests++;
                     success = true;

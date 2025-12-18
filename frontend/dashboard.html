@@ -143,6 +143,10 @@
       font-size: 14px;
     }
     
+    .ats-score-high { color: #10b981; font-weight: 600; }
+    .ats-score-medium { color: #f59e0b; font-weight: 600; }
+    .ats-score-low { color: #ef4444; font-weight: 600; }
+    
     .badge {
       display: inline-block;
       padding: 4px 12px;
@@ -415,7 +419,12 @@
               status: 'pending',
               description: 'We are looking for a skilled SOC Analyst to join our security operations team. You will be responsible for monitoring security events, analyzing threats, and responding to incidents.',
               scrapedAt: new Date(),
-              url: 'https://linkedin.com/jobs/view/soc-analyst-at-tech-corp-12345'
+              url: 'https://linkedin.com/jobs/view/soc-analyst-at-tech-corp-12345',
+              aiGenerated: {
+                resume: {
+                  atsScore: 85
+                }
+              }
             },
             {
               _id: '2',
@@ -427,7 +436,12 @@
               status: 'ready_for_review',
               description: 'Join our cybersecurity team as a Security Analyst. You will help protect our financial systems and customer data from cyber threats.',
               scrapedAt: new Date(Date.now() - 86400000), // 1 day ago
-              url: 'https://reed.co.uk/jobs/security-analyst-67890'
+              url: 'https://reed.co.uk/jobs/security-analyst-67890',
+              aiGenerated: {
+                resume: {
+                  atsScore: 72
+                }
+              }
             },
             {
               _id: '3',
@@ -439,7 +453,12 @@
               status: 'applied',
               description: 'Exciting opportunity for a junior penetration tester to work with our clients on security assessments and vulnerability testing.',
               scrapedAt: new Date(Date.now() - 172800000), // 2 days ago
-              url: 'https://indeed.co.uk/jobs/junior-penetration-tester-54321'
+              url: 'https://indeed.co.uk/jobs/junior-penetration-tester-54321',
+              aiGenerated: {
+                resume: {
+                  atsScore: 91
+                }
+              }
             }
           ];
         } catch (error) {
@@ -568,6 +587,11 @@
               <div class="meta-item">
                 📅 ${this.formatDate(job.scrapedAt)}
               </div>
+              ${job.aiGenerated?.resume?.atsScore ? `
+              <div class="meta-item">
+                📊 ATS Score: <span class="${this.getAtsScoreClass(job.aiGenerated.resume.atsScore)}">${job.aiGenerated.resume.atsScore}%</span>
+              </div>
+              ` : ''}
             </div>
             
             <div class="job-description">
@@ -605,6 +629,12 @@
         return `<span class="platform-badge ${classes[platform]}">${platform}</span>`;
       }
 
+      getAtsScoreClass(score) {
+        if (score >= 80) return 'ats-score-high';
+        if (score >= 60) return 'ats-score-medium';
+        return 'ats-score-low';
+      }
+
       formatDate(date) {
         const d = new Date(date);
         const now = new Date();
@@ -620,7 +650,15 @@
         const modal = document.getElementById('job-modal');
         document.getElementById('modal-title').textContent = job.title;
         document.getElementById('modal-company').textContent = job.company;
-        document.getElementById('modal-description').textContent = job.description;
+        
+        // Add ATS score to description if available
+        let descriptionWithScore = job.description || '';
+        if (job.aiGenerated?.resume?.atsScore) {
+          const scoreClass = this.getAtsScoreClass(job.aiGenerated.resume.atsScore);
+          descriptionWithScore = `📊 ATS Score: ${job.aiGenerated.resume.atsScore}%\n\n${descriptionWithScore}`;
+        }
+        
+        document.getElementById('modal-description').textContent = descriptionWithScore;
         document.getElementById('modal-url').href = job.url;
         
         modal.style.display = 'block';
@@ -647,15 +685,27 @@
         
         // Load generated email (in a real implementation, this would come from the API)
         document.getElementById('email-subject').value = `Application for ${job.title} Position - ${job.company}`;
-        document.getElementById('email-body').value = `Dear Hiring Manager,
+        
+        // Add ATS score information to email body if available
+        let emailBody = `Dear Hiring Manager,
 
 I am writing to express my strong interest in the ${job.title} position at ${job.company}. With my background in cybersecurity and network security, I am confident I can contribute effectively to your team.
 
-My experience in security operations aligns well with your requirements, and I am particularly excited about the opportunity to work with your organization.
+My experience in security operations aligns well with your requirements, and I am particularly excited about the opportunity to work with your organization.`;
+        
+        if (job.aiGenerated?.resume?.atsScore) {
+          emailBody += `
+
+Based on my analysis, my resume has an estimated ${job.aiGenerated.resume.atsScore}% compatibility score with typical Applicant Tracking Systems (ATS) used in your industry. This indicates a strong match with the keywords and qualifications commonly sought for this type of position.`;
+        }
+        
+        emailBody += `
 
 I would welcome the opportunity to discuss how my skills and experience can benefit ${job.company}. Thank you for considering my application.
 
 Best regards`;
+        
+        document.getElementById('email-body').value = emailBody;
 
         modal.style.display = 'block';
         
