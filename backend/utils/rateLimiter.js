@@ -60,5 +60,3 @@ class RateLimiter {
 }
 
 module.exports = RateLimiter;
-
-module.exports = SmartRateLimiter;

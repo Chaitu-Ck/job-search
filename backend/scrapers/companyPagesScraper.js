@@ -1,12 +1,12 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const logger = require('../utils/logger');
-const SmartRateLimiter = require('../utils/rateLimiter');
+const RateLimiter = require('../utils/rateLimiter');
 const { COMPANY_CAREER_PAGES } = require('../config/companySources');
 
 class CompanyPagesScraper {
   constructor() {
-    this.rateLimiter = new SmartRateLimiter(5); // 5 requests per minute for company pages
+    this.rateLimiter = new RateLimiter(5); // 5 requests per minute for company pages
   }
 
   /**
@@ -23,7 +23,7 @@ class CompanyPagesScraper {
     logger.info(`🏢 Starting company pages scraping for ${highPriorityCompanies.length} companies`);
     
     for (const company of highPriorityCompanies) {
-      await this.rateLimiter.throttle();
+      await this.rateLimiter.wait();
       
       try {
         logger.info(`🔍 Scraping ${company.name}...`);

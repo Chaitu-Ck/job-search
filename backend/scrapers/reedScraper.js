@@ -1,12 +1,12 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const logger = require('../utils/logger');
-const SmartRateLimiter = require('../utils/rateLimiter');
+const RateLimiter = require('../utils/rateLimiter');
 
 class ReedScraper {
     constructor() {
         this.baseURL = 'https://www.reed.co.uk';
-        this.rateLimiter = new SmartRateLimiter(8);
+        this.rateLimiter = new RateLimiter(8);
         
         // User agent rotation
         this.userAgents = [
@@ -48,7 +48,7 @@ class ReedScraper {
             
             while (retries < maxRetries && !success) {
                 try {
-                    await this.rateLimiter.throttle();
+                    await this.rateLimiter.wait();
                     await this.randomDelay(); // Add random delay
                     
                     // Updated URL structure for Reed

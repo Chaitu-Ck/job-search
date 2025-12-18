@@ -1,12 +1,12 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const logger = require('../utils/logger');
-const SmartRateLimiter = require('../utils/rateLimiter');
+const RateLimiter = require('../utils/rateLimiter');
 
 class IndeedScraper {
     constructor() {
         this.baseURL = 'https://uk.indeed.com';
-        this.rateLimiter = new SmartRateLimiter(8);
+        this.rateLimiter = new RateLimiter(8);
         
         // User agent rotation
         this.userAgents = [
@@ -48,7 +48,7 @@ class IndeedScraper {
             
             while (retries < maxRetries && !success) {
                 try {
-                    await this.rateLimiter.throttle();
+                    await this.rateLimiter.wait();
                     await this.randomDelay(); // Add random delay
                     
                     const start = page * 10;

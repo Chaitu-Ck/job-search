@@ -1,12 +1,12 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const logger = require('../utils/logger');
-const SmartRateLimiter = require('../utils/rateLimiter');
+const RateLimiter = require('../utils/rateLimiter');
 
 class CWJobsScraper {
   constructor() {
     this.baseURL = 'https://www.cwjobs.co.uk';
-    this.rateLimiter = new SmartRateLimiter(8);
+    this.rateLimiter = new RateLimiter(8);
   }
 
   async scrapeJobs(keywords, location = 'UK') {
@@ -14,7 +14,7 @@ class CWJobsScraper {
     const maxPages = 5;
     
     for (let page = 1; page <= maxPages; page++) {
-      await this.rateLimiter.throttle();
+      await this.rateLimiter.wait();
       
       try {
         const searchURL = `${this.baseURL}/jobs/${encodeURIComponent(keywords)}?location=${encodeURIComponent(location)}&page=${page}`;

@@ -1,12 +1,12 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const logger = require('../utils/logger');
-const SmartRateLimiter = require('../utils/rateLimiter');
+const RateLimiter = require('../utils/rateLimiter');
 
 class StudentCircusScraper {
   constructor() {
     this.baseURL = 'https://studentcircus.com';
-    this.rateLimiter = new SmartRateLimiter(5); // Conservative rate limit
+    this.rateLimiter = new RateLimiter(5); // Conservative rate limit
     
     this.userAgents = [
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -111,7 +111,7 @@ class StudentCircusScraper {
     
     try {
       for (let page = 1; page <= maxPages; page++) {
-        await this.rateLimiter.throttle();
+        await this.rateLimiter.wait();
         await this.randomDelay();
         
         // Build search URL
