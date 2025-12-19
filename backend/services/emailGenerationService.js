@@ -1,67 +1,115 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const logger = require('../utils/logger');
-const errorRecovery = require('../utils/errorRecovery');
 
 class EmailGenerationService {
   constructor() {
-    this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
   }
 
-  async generateCustomEmail(jobData, resumeData) {
+  async generateEmail(job, cvContent) {
     try {
-      const prompt = `Create a professional, compelling job application email for the following position:
+      const prompt = `
+You are a professional email writer. Create a compelling job application email.
 
-**Job Details:**
-- Position: ${jobData.title}
-- Company: ${jobData.company}
-- Description: ${jobData.description}
+JOB DETAILS:
+Title: ${job.title}
+Company: ${job.company}
+Location: ${job.location}
 
-**Candidate Profile:**
-- Skills: ${resumeData.skills.join(', ')}
-- Experience: ${resumeData.experience}
-- Education: ${resumeData.education}
+MY QUALIFICATIONS (from CV):
+${cvContent?.substring(0, 300)}
 
-**Requirements:**
-1. Express genuine interest in the role
-2. Highlight 2-3 relevant skills that match the job description
-3. Show enthusiasm for the company
-4. Keep it concise (150-200 words)
-5. Professional but personable tone
-6. Include a strong call to action
+REQUIREMENTS:
+1. Professional and enthusiastic tone
+2. Highlight 2-3 key qualifications
+3. Show genuine interest in the company
+4. Include strong call to action
+5. Keep it concise (150-200 words)
 
-Generate ONLY the email body (no subject line, no signature).`;
+Generate:
+1. Email subject line
+2. Email body
 
-      const result = await errorRecovery.retryWithBackoff(async () => {
-        const response = await this.model.generateContent(prompt);
-        return response.response.text().trim();
-      }, 3, 2000);
+Format as:
+SUBJECT: [subject line]
 
-      logger.info(`✅ Generated custom email for ${jobData.title} at ${jobData.company}`);
-      return result;
+BODY:
+[email body]`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const emailText = response.text();
+
+      const subjectMatch = emailText.match(/SUBJECT:\s*(.+?)(?:\n|$)/i);
+      const bodyMatch = emailText.match(/BODY:\s*([\s\S]+)/i);
+
+      const subject = subjectMatch 
+        ? subjectMatch[1].trim() 
+        : `Application for ${job.title} Position`;
+      
+      const body = bodyMatch 
+        ? bodyMatch[1].trim() 
+        : `Dear Hiring Manager,
+
+I am writing to express my interest in the ${job.title} position at ${job.company}.
+
+Best regards`;
+
+      return {
+        subject,
+        body,
+        wordCount: body.split(/\s+/).length,
+        tone: 'professional',
+        generatedAt: new Date()
+      };
 
     } catch (error) {
-      logger.error('Email generation failed:', error);
-      
-      // Fallback template
-      return this.getFallbackEmail(jobData, resumeData);
+      logger.error('Email generation failed:', error.message);
+      throw error;
     }
   }
 
-  getFallbackEmail(jobData, resumeData) {
-    return `Dear Hiring Manager,
+  async regenerateEmail(job, userFeedback, currentEmail) {
+    try {
+      const prompt = `
+Regenerate this job application email based on user feedback.
 
-I am writing to express my strong interest in the ${jobData.title} position at ${jobData.company}. With my background in ${resumeData.skills[0]} and ${resumeData.skills[1]}, I am confident I can contribute effectively to your team.
+JOB: ${job.title} at ${job.company}
 
-My experience in ${resumeData.experience} aligns well with your requirements, and I am particularly excited about the opportunity to work with your organization.
+CURRENT EMAIL:
+Subject: ${currentEmail.subject}
+Body: ${currentEmail.body}
 
-I would welcome the opportunity to discuss how my skills and experience can benefit ${jobData.company}. Thank you for considering my application.
+USER FEEDBACK:
+${userFeedback}
 
-Best regards`;
-  }
+Generate an improved email. Keep it professional and concise (150-200 words).
 
-  async generateSubject(jobData) {
-    return `Application for ${jobData.title} Position - ${jobData.company}`;
+Format as:
+SUBJECT: [subject line]
+
+BODY:
+[email body]`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = await result.response;
+      const emailText = response.text();
+
+      const subjectMatch = emailText.match(/SUBJECT:\s*(.+?)(?:\n|$)/i);
+      const bodyMatch = emailText.match(/BODY:\s*([\s\S]+)/i);
+
+      return {
+        subject: subjectMatch ? subjectMatch[1].trim() : currentEmail.subject,
+        body: bodyMatch ? bodyMatch[1].trim() : currentEmail.body,
+        wordCount: bodyMatch ? bodyMatch[1].trim().split(/\s+/).length : 0,
+        generatedAt: new Date()
+      };
+
+    } catch (error) {
+      logger.error('Email regeneration failed:', error.message);
+      throw error;
+    }
   }
 }
 

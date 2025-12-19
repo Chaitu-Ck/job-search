@@ -318,7 +318,7 @@
           <option value="applied">Applied</option>
         </select>
       </div>
-      
+
       <div class="filter-group">
         <label for="filter-platform">Platform</label>
         <select id="filter-platform">
@@ -331,13 +331,14 @@
           <option value="TotalJobs">TotalJobs</option>
         </select>
       </div>
-      
+
       <div class="filter-group">
         <label for="search-input">Search</label>
         <input type="text" id="search-input" placeholder="Search by title or company...">
       </div>
-      
+
       <button class="btn btn-primary" id="refresh-btn">Refresh</button>
+      <button class="btn btn-danger" id="reset-db-btn" title="⚠️ Delete all jobs from database">Reset Database</button>
     </div>
     
     <div class="jobs-grid" id="jobs-container">
@@ -356,31 +357,47 @@
     </div>
   </div>
   
-  <!-- Edit Modal -->
-  <div class="modal" id="edit-modal">
-    <div class="modal-content">
-      <button class="modal-close">&times;</button>
-      <h2>Edit Application</h2>
-      
-      <div class="form-group">
-        <label for="email-subject">Email Subject</label>
-        <input type="text" id="email-subject" placeholder="Application for [Position] Position">
+  <!-- CV Modal -->
+  <div id="cv-modal" class="modal">
+    <div class="modal-content" style="max-width: 900px;">
+      <div class="modal-header">
+        <h2 id="cv-modal-title">CV Preview</h2>
+        <span class="modal-close">&times;</span>
       </div>
-      
-      <div class="form-group">
-        <label for="email-body">Email Body</label>
-        <textarea id="email-body" placeholder="Enter your customized email content..."></textarea>
+      <div class="modal-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+          <span id="cv-ats-score" class="cv-ats-badge" style="display:none;padding:8px 16px;border-radius:6px;font-weight:600;"></span>
+          <div style="display:flex;gap:10px;">
+            <button id="ai-optimize-cv" class="btn-action" style="background:#8b5cf6;color:white;">AI Optimize</button>
+            <button id="save-cv" class="btn-action" style="background:#10b981;color:white;">Save Changes</button>
+          </div>
+        </div>
+        <textarea id="cv-content" style="width:100%;min-height:500px;padding:15px;border:1px solid #e2e8f0;border-radius:8px;font-family:monospace;font-size:14px;line-height:1.6;resize:vertical;"></textarea>
       </div>
-      
-      <div class="form-group">
-        <label>Resume Preview</label>
-        <div class="email-preview">
-          <p>Resume will be attached automatically when you apply.</p>
-          <p><em>Note: In a full implementation, you would see a preview of your optimized resume here.</em></p>
+    </div>
+  </div>
+
+  <!-- Email Modal -->
+  <div id="email-modal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        <h2 id="email-modal-title">Cover Email</h2>
+        <span class="modal-close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-weight:600;margin-bottom:8px;color:#334155;">Subject:</label>
+          <input type="text" id="email-subject" style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+        </div>
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-weight:600;margin-bottom:8px;color:#334155;">Email Body:</label>
+          <textarea id="email-body" style="width:100%;min-height:400px;padding:15px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;line-height:1.6;resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button id="ai-optimize-email" class="btn-action" style="background:#8b5cf6;color:white;">AI Optimize</button>
+          <button id="save-email" class="btn-action" style="background:#10b981;color:white;">Save Changes</button>
         </div>
       </div>
-      
-      <button class="btn btn-primary" id="save-changes">Save Changes</button>
     </div>
   </div>
   

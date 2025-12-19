@@ -1,56 +1,40 @@
-# Job Automation System
+# Job Automation Platform 🚀
 
-🚀 A complete 24/7 job automation system that scrapes jobs from multiple platforms, optimizes resumes, generates custom emails, and provides a dashboard for reviewing and applying to jobs.
+Automated job search and application system with AI-powered CV optimization and multi-platform scraping.
 
 ## Features
 
-✨ **Multi-Platform Scraping**
-- LinkedIn, Indeed, Reed, TotalJobs, StudentCircus
-- Configurable scraping schedules
-- Duplicate detection
-- Freshness tracking
+### 🔍 Multi-Platform Job Scraping
+- LinkedIn Jobs
+- Reed.co.uk
+- Indeed
+- StudentCircus, CWJobs, TotalJobs
+- Automatic deduplication
 
-🤖 **AI-Powered Automation**
-- Resume optimization using Google Gemini
-- Custom email generation
-- ATS score calculation
-- Skills matching
+### 🤖 AI-Powered Content Generation
+- CV generation optimized for ATS
+- Cover email creation
+- Content optimization with Google Gemini
+- ATS compatibility scoring (60-99%)
 
-📊 **Dashboard Interface**
+### 📊 Interactive Dashboard
 - Real-time job tracking
-- Status management
-- Search and filtering
-- Application tracking
+- Status management (Scraped → Ready → Applied)
+- Platform and status filtering
+- Search functionality
+- View/Edit CV and emails
+- Regenerate AI content on-demand
 
-🔒 **Production-Ready**
-- Security hardening (Helmet, CORS, rate limiting)
-- MongoDB injection protection
-- Input validation
+### 🛠️ Robust Backend
+- RESTful API with Express.js
+- MongoDB data persistence
+- Rate limiting and retry logic
 - Comprehensive error handling
-- Structured logging
-
-## Tech Stack
-
-- **Backend**: Node.js, Express
-- **Database**: MongoDB with Mongoose
-- **Scraping**: Puppeteer
-- **AI**: Google Gemini API
-- **Email**: Nodemailer
-- **Scheduling**: node-cron
-- **Security**: Helmet, express-rate-limit, express-mongo-sanitize
+- Modular service architecture
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js >= 18.0.0
-- MongoDB >= 5.0
-- Gmail account (for email automation)
-- Google Gemini API key
-
-### Installation
-
-```bash
+```
 # Clone repository
 git clone https://github.com/Chaitu-Ck/job-search.git
 cd job-search
@@ -58,238 +42,220 @@ cd job-search
 # Install dependencies
 npm install
 
-# Copy environment file
+# Configure environment
 cp .env.example .env
+# Edit .env with your API keys
 
-# Edit .env with your credentials
-nano .env
+# Start MongoDB
+mongod
 
-# Setup database
-npm run setup
+# Run scrapers
+npm run scrape:now
 
-# Start development server
-npm run dev
+# Start server
+npm start
+
+# Access dashboard
+open http://localhost:3000/dashboard.html
 ```
 
-Visit http://localhost:3000
+## Screenshots
 
-### Docker Deployment
+### Dashboard
+![Dashboard showing 92 scraped jobs with filtering options]
 
-```bash
-# Start all services
-docker-compose up -d
+### Job Card with AI Content
+- View generated CV and emails
+- Regenerate with AI
+- Edit and optimize
+- ATS score display
 
-# View logs
-docker-compose logs -f
+### Modals
+- CV preview with ATS score
+- Email editor with subject/body
+- AI optimization buttons
 
-# Stop services
-docker-compose down
-```
+## Technology Stack
+
+**Backend:**
+- Node.js + Express.js
+- MongoDB + Mongoose
+- Puppeteer (LinkedIn scraping)
+- Axios + Cheerio (Reed/Indeed)
+- Google Gemini AI
+
+**Frontend:**
+- Vanilla JavaScript
+- Modern CSS with gradients
+- Responsive design
+- Modal system
 
 ## Configuration
 
 ### Environment Variables
 
-Create a `.env` file:
-
-```env
-# Database
-MONGO_URI=mongodb://localhost:27017/job-automation
-
+```
 # Server
 PORT=3000
-NODE_ENV=development
+NODE_ENV=production
 
-# AI Service
-GEMINI_API_KEY=your_gemini_api_key
+# Database
+MONGODB_URI=mongodb://localhost:27017/job-automation
 
-# Email
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_app_specific_password
+# AI Services
+GEMINI_API_KEY=your_key_here
 
-# Security (optional)
-ALLOWED_ORIGINS=http://localhost:3000
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
+# LinkedIn (Optional)
+LINKEDIN_EMAIL=your_email
+LINKEDIN_PASSWORD=your_password
 ```
 
-### Scraper Schedules
+### User Profile (`data/profile.json`)
 
-Edit `backend/scheduler/continuousScheduler.js`:
-
-```javascript
-const scrapers = [
-  { name: 'LinkedIn', scraper: linkedinScraper, schedule: '0 */6 * * *' },  // Every 6 hours
-  { name: 'Indeed', scraper: indeedScraper, schedule: '0 */8 * * *' },      // Every 8 hours
-  { name: 'Reed', scraper: reedScraper, schedule: '0 */4 * * *' },          // Every 4 hours
-];
+```
+{
+  "name": "Your Name",
+  "email": "your.email@example.com",
+  "phone": "+44 1234 567890",
+  "location": "London, UK",
+  "targetRole": "Software Engineer",
+  "skills": ["JavaScript", "Node.js", "React"],
+  "experience": [...]
+}
 ```
 
 ## API Documentation
 
-### Get Jobs
+### Jobs
 
-```http
-GET /api/jobs?status=scraped&platform=LinkedIn&limit=50
+```
+GET    /api/jobs?limit=100&status=scraped
+GET    /api/jobs/:id
+POST   /api/jobs
+PATCH  /api/jobs/:id/status
+DELETE /api/jobs/reset
 ```
 
-### Get Job by ID
+### AI Operations
 
-```http
-GET /api/jobs/:id
+```
+POST   /api/jobs/:id/regenerate-cv
+POST   /api/jobs/:id/regenerate-email
+PATCH  /api/jobs/:id/cv
+PATCH  /api/jobs/:id/email
+POST   /api/jobs/:id/optimize-cv
+POST   /api/jobs/:id/optimize-email
 ```
 
-### Update Job Status
+### Statistics
 
-```http
-PATCH /api/jobs/:id/status
-Content-Type: application/json
-
-{
-  "status": "user_approved"
-}
+```
+GET    /api/stats
 ```
 
-### Get Statistics
+## Deployment
 
-```http
-GET /api/stats
+### Docker
+
+```
+docker-compose up -d
 ```
 
-### Health Check
+### PM2 (Production)
 
-```http
-GET /health
+```
+pm2 start cluster.js --name job-automation
+pm2 save
+pm2 startup
+```
+
+### Verification
+
+```
+chmod +x deployment-verification.sh
+./deployment-verification.sh
 ```
 
 ## Architecture
 
 ```
-job-search/
-├── backend/
-│   ├── config/          # Configuration files
-│   ├── models/          # MongoDB schemas
-│   ├── routes/          # Express routes
-│   ├── scheduler/       # Cron job scheduler
-│   ├── scrapers/        # Platform scrapers
-│   ├── services/        # Business logic
-│   ├── test/            # Unit & integration tests
-│   └── utils/           # Utility functions
-├── frontend/            # Dashboard UI
-├── logs/                # Application logs
-├── scripts/             # Setup & utility scripts
-├── .env.example         # Environment template
-├── server.js            # Application entry point
-├── cluster.js           # Cluster mode for production
-├── Dockerfile           # Docker configuration
-└── docker-compose.yml   # Multi-container setup
-```
-
-## Testing
-
-```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm test -- --coverage
-
-# Run specific test file
-npm test -- backend/test/job.test.js
-
-# Watch mode
-npm run test:watch
+┌─────────────┐
+│   Browser   │
+│  Dashboard  │
+└──────┬──────┘
+       │ HTTP/REST
+┌──────▼──────┐
+│   Express   │
+│   Server    │
+├─────────────┤
+│  Routes     │
+│  - Jobs     │
+│  - Stats    │
+│  - AI Ops   │
+├─────────────┤
+│  Services   │
+│  - ATS      │
+│  - Resume   │
+│  - Email    │
+│  - AI       │
+├─────────────┤
+│  Scrapers   │
+│  - LinkedIn │
+│  - Reed     │
+│  - Indeed   │
+└──────┬──────┘
+       │
+┌──────▼──────┐
+│   MongoDB   │
+│   Database  │
+└─────────────┘
 ```
 
 ## Development
 
-### Code Quality
+### Run Tests
 
-```bash
-# Lint code
+```
+npm test
+```
+
+### Watch Mode
+
+```
+npm run dev
+```
+
+### Linting
+
+```
 npm run lint
-
-# Fix linting issues
-npm run lint:fix
 ```
-
-### Manual Scraping
-
-```bash
-# Run scrapers manually
-npm run scrape:now
-```
-
-### Database Management
-
-```bash
-# Create indexes
-npm run setup
-
-# MongoDB shell
-mongosh mongodb://localhost:27017/job-automation
-```
-
-## Production Deployment
-
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
-
-## Security
-
-- All API endpoints are rate-limited
-- MongoDB injection protection
-- Input validation on all routes
-- Secure headers with Helmet
-- CORS configuration
-- Environment-based secrets
-- SQL injection prevention
-- XSS protection
-
-## Performance
-
-- Cluster mode for multi-core utilization
-- Connection pooling
-- Database indexing
-- Efficient scraping with rate limiting
-- Memory leak prevention in Puppeteer
-- Optimized MongoDB queries
-
-## Monitoring
-
-### Logs
-
-```bash
-tail -f logs/combined.log    # All logs
-tail -f logs/error.log       # Error logs only
-```
-
-### Metrics
-
-- Health endpoint: `/health`
-- Metrics endpoint: `/api/metrics`
 
 ## Troubleshooting
 
-### Common Issues
+### Scrapers timing out
+- Increase rate limiter delays
+- Check internet connection
+- Verify user agent rotation
 
-**Puppeteer fails to launch**
-```bash
-# Linux
-sudo apt-get install -y chromium-browser
+### AI generation failing
+- Validate GEMINI_API_KEY
+- Check API quota
+- Review error logs
 
-# macOS
-brew install chromium
-```
+### MongoDB connection issues
+- Ensure MongoDB is running
+- Verify MONGODB_URI
+- Check firewall settings
 
-**MongoDB connection fails**
-- Verify MongoDB is running
-- Check MONGO_URI format
-- Ensure network access
+## Roadmap
 
-**Email sending fails**
-- Use Gmail app-specific password
-- Check SMTP settings
-- Verify firewall rules
+- [ ] Email automation (SMTP integration)
+- [ ] Chrome extension for one-click apply
+- [ ] Advanced analytics dashboard
+- [ ] Multi-user support
+- [ ] Webhook notifications
+- [ ] API rate limiting dashboard
 
 ## Contributing
 
@@ -301,16 +267,13 @@ brew install chromium
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file
+MIT License - see LICENSE file
 
 ## Author
 
-**Chaitu CK**
-- GitHub: [@Chaitu-Ck](https://github.com/Chaitu-Ck)
+**Chaitu-Ck**  
+GitHub: [@Chaitu-Ck](https://github.com/Chaitu-Ck)
 
-## Acknowledgments
+---
 
-- Puppeteer for web scraping
-- Google Gemini for AI capabilities
-- MongoDB for data storage
-- Express.js for backend framework
+⭐ Star this repo if you find it helpful!

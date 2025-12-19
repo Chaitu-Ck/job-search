@@ -1,320 +1,295 @@
-# Deployment Guide
+# Job Automation Platform - Complete Deployment Guide
 
-## Prerequisites
-- Node.js >= 18.0.0
-- MongoDB >= 5.0
+### Prerequisites
+- Node.js 18+ 
+- MongoDB 5.0+
 - Git
+- Google Gemini API Key
 
-## Local Development Setup
+### Quick Start
 
-### 1. Clone Repository
+1. **Clone Repository**
 ```
 git clone https://github.com/Chaitu-Ck/job-search.git
 cd job-search
 ```
 
-### 2. Install Dependencies
+2. **Environment Setup**
+```
+cp .env.example .env
+```
+
+Edit `.env`:
+```
+MONGODB_URI=mongodb://localhost:27017/job-automation
+PORT=3000
+NODE_ENV=production
+
+# AI Service
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Optional LinkedIn Integration
+LINKEDIN_EMAIL=your_email@example.com
+LINKEDIN_PASSWORD=your_password
+```
+
+3. **Install Dependencies**
 ```
 npm install
 ```
 
-### 3. Environment Configuration
+4. **Start MongoDB**
 ```
-cp .env.example .env
-# Edit .env with your credentials
+# Local installation
+mongod --dbpath /data/db
+
+# OR Docker
+docker run -d -p 27017:27017 --name mongodb mongo:latest
 ```
 
-Required environment variables:
-- `MONGO_URI`: MongoDB connection string
-- `GEMINI_API_KEY`: Google Gemini API key
-- `EMAIL_USER`: Email address for sending applications
-- `EMAIL_PASS`: App-specific password
-
-### 4. Database Setup
+5. **Run Verification**
 ```
-npm run setup
+chmod +x deployment-verification.sh
+./deployment-verification.sh
 ```
 
-### 5. Start Development Server
+6. **Start Application**
 ```
+# Development
 npm run dev
+
+# Production
+npm start
+
+# PM2 (recommended)
+npm install -g pm2
+pm2 start cluster.js --name job-automation
+pm2 save
+pm2 startup
 ```
 
-The application will be available at http://localhost:3000
+7. **Access Dashboard**
+```
+http://localhost:3000/dashboard.html
+```
 
-## Production Deployment
+### Features Implemented
 
-### Option 1: Docker Deployment
+#### ✅ Core Features
+- Multi-platform job scraping (LinkedIn, Reed, Indeed)
+- Real-time dashboard with filtering
+- Job status management
+- ATS compatibility scoring
+- Database management (reset functionality)
+
+#### ✅ AI Integration
+- CV generation with ATS optimization
+- Cover email generation
+- AI-powered content optimization
+- Keyword extraction and matching
+
+#### ✅ Frontend Features
+- Interactive job cards with status badges
+- View/Edit CV and email modals
+- Regenerate AI content on-demand
+- Platform and status filtering
+- Real-time search
+
+#### ✅ Backend Features
+- RESTful API with Express
+- MongoDB data persistence
+- Rate limiting for scrapers
+- Error handling and logging
+- Modular service architecture
+
+### API Endpoints
 
 ```
-# Build and start containers
+GET    /api/jobs              - List all jobs
+GET    /api/jobs/:id          - Get specific job
+POST   /api/jobs              - Create job
+PATCH  /api/jobs/:id/status   - Update job status
+DELETE /api/jobs/reset        - Reset database
+
+POST   /api/jobs/:id/regenerate-cv     - Regenerate CV
+POST   /api/jobs/:id/regenerate-email  - Regenerate email
+PATCH  /api/jobs/:id/cv                - Update CV
+PATCH  /api/jobs/:id/email             - Update email
+POST   /api/jobs/:id/optimize-cv       - AI optimize CV
+POST   /api/jobs/:id/optimize-email    - AI optimize email
+
+GET    /api/stats             - Get statistics
+```
+
+### Running Scrapers
+
+```
+# Run all scrapers once
+npm run scrape:now
+
+# Schedule automatic scraping
+npm run scrape:schedule
+
+# Individual platforms
+node backend/scrapers/reedScraper.js
+node backend/scrapers/linkedinScraper.js
+node backend/scrapers/indeedScraper.js
+```
+
+### Database Management
+
+**View Jobs**
+```
+mongosh job-automation
+db.jobs.find().pretty()
+```
+
+**Reset Database (via API)**
+```
+curl -X DELETE http://localhost:3000/api/jobs/reset
+```
+
+**Export Data**
+```
+mongoexport --db=job-automation --collection=jobs --out=jobs.json
+```
+
+**Import Data**
+```
+mongoimport --db=job-automation --collection=jobs --file=jobs.json
+```
+
+### Docker Deployment
+
+```
+# Build and start
 docker-compose up -d
 
 # View logs
-docker-compose logs -f app
+docker-compose logs -f
 
-# Stop containers
+# Stop
 docker-compose down
 ```
 
-### Option 2: Manual Deployment
+### Production Considerations
 
+1. **Security**
+   - Use environment variables for secrets
+   - Enable HTTPS/SSL certificates
+   - Implement authentication for dashboard
+   - Rate limit API endpoints
+
+2. **Performance**
+   - Use PM2 cluster mode
+   - Enable MongoDB indexes
+   - Implement Redis caching
+   - Use CDN for static assets
+
+3. **Monitoring**
+   - Set up error logging (Sentry)
+   - Monitor server metrics
+   - Track scraper success rates
+   - Set up alerts for failures
+
+4. **Backup**
+   - Automate MongoDB backups
+   - Store backups offsite
+   - Test restore procedures
+
+### Troubleshooting
+
+**Port already in use**
 ```
-# Install production dependencies
-npm ci --only=production
-
-# Set environment
-export NODE_ENV=production
-
-# Start with cluster mode
-npm run start:production
-```
-
-### Option 3: Cloud Platform (Railway/Render/Heroku)
-
-1. **Railway**:
-```
-railway login
-railway init
-railway up
-```
-
-2. **Render**:
-- Connect GitHub repository
-- Set build command: `npm install`
-- Set start command: `npm start`
-- Add environment variables
-
-3. **Heroku**:
-```
-heroku create job-automation-app
-heroku config:set NODE_ENV=production
-heroku config:set MONGO_URI=your_mongodb_url
-git push heroku main
-```
-
-## Environment Variables
-
-### Required
-```
-MONGO_URI=mongodb://localhost:27017/job-automation
-PORT=3000
-NODE_ENV=production
-GEMINI_API_KEY=your_api_key
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_app_password
+# Find process
+lsof -i :3000
+# Kill process
+kill -9 <PID>
 ```
 
-### Optional
+**MongoDB connection failed**
 ```
-LOG_LEVEL=info
-ALLOWED_ORIGINS=https://yourdomain.com
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
-SCRAPER_HEADLESS=true
-```
-
-## Database Indexes
-
-Run this after first deployment:
-```
-npm run setup
+# Check MongoDB status
+brew services list | grep mongodb
+# Restart MongoDB
+brew services restart mongodb-community
 ```
 
-Or manually in MongoDB:
-```
-db.jobs.createIndex({ "source.url": 1 }, { unique: true })
-db.jobs.createIndex({ "status": 1, "quality.matchScore": -1 })
-db.jobs.createIndex({ "source.scrapedAt": -1 })
-```
+**Scraper timeouts**
+- Check rate limiter settings
+- Verify user agent rotation
+- Ensure stable internet connection
 
-## Monitoring
+**AI generation fails**
+- Verify GEMINI_API_KEY is valid
+- Check API quota limits
+- Review error logs for details
 
-### Health Check
+### Development Workflow
+
+1. **Make Changes**
 ```
-curl http://localhost:3000/health
-```
-
-### Logs
-```
-# Development
-tail -f logs/combined.log
-
-# Production (Docker)
-docker-compose logs -f app
-
-# Production (PM2)
-pm2 logs job-automation
+git checkout -b feature/your-feature
+# Make changes
+npm test
+git commit -m "Add feature"
 ```
 
-## Security Checklist
-
-- [ ] Change all default passwords
-- [ ] Set strong SESSION_SECRET
-- [ ] Enable HTTPS
-- [ ] Configure CORS properly
-- [ ] Set up firewall rules
-- [ ] Enable rate limiting
-- [ ] Regular security updates
-- [ ] Backup database regularly
-
-## Performance Optimization
-
-### PM2 Process Manager
+2. **Test Locally**
 ```
-npm install -g pm2
-
-pm2 start server.js -i max --name "job-automation"
-pm2 startup
-pm2 save
+npm run dev
+# Test in browser
 ```
 
-### Nginx Reverse Proxy
+3. **Deploy**
 ```
-server {
-    listen 80;
-    server_name yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
+git push origin feature/your-feature
+# Create PR, merge to main
+pm2 restart job-automation
 ```
 
-## Troubleshooting
+### File Structure
 
-### Issue: Puppeteer fails to launch
 ```
-# Install Chromium dependencies
-sudo apt-get update
-sudo apt-get install -y chromium-browser
-```
-
-### Issue: MongoDB connection fails
-- Check MongoDB is running
-- Verify MONGO_URI format
-- Check firewall rules
-- Verify credentials
-
-### Issue: Email sending fails
-- Use Gmail app-specific password
-- Enable "Less secure app access"
-- Check SMTP settings
-
-## Backup & Recovery
-
-### Database Backup
-```
-mongodump --uri="mongodb://localhost:27017/job-automation" --out=backup/
-```
-
-### Database Restore
-```
-mongorestore --uri="mongodb://localhost:27017/job-automation" backup/
+job-search/
+├── backend/
+│   ├── models/         # MongoDB schemas
+│   ├── routes/         # API routes
+│   ├── scrapers/       # Platform scrapers
+│   ├── services/       # Business logic
+│   │   ├── atsService.js
+│   │   ├── resumeService.js
+│   │   ├── emailService.js
+│   │   └── aiService.js
+│   └── utils/          # Helpers
+├── frontend/
+│   ├── js/
+│   │   └── dashboard.js
+│   └── dashboard.html
+├── data/               # User data
+│   ├── resume.txt
+│   └── profile.json
+├── .env.example
+├── server.js
+├── cluster.js
+├── docker-compose.yml
+└── package.json
 ```
 
-## Maintenance
+### Support
 
-### Update Dependencies
-```
-npm outdated
-npm update
-npm audit fix
-```
+Issues: https://github.com/Chaitu-Ck/job-search/issues
+Docs: https://github.com/Chaitu-Ck/job-search/wiki
 
-### Clean Old Jobs
-```
-// Run in MongoDB shell
-db.jobs.deleteMany({ 
-  status: "expired", 
-  "source.scrapedAt": { $lt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } 
-})
-```
+---
 
-### Monitor Resource Usage
-```
-# CPU and Memory
-top
+**Platform Status: Production Ready ✅**
 
-# Disk usage
-df -h
-
-# MongoDB stats
-db.stats()
-```
-
-## Scaling
-
-### Horizontal Scaling
-
-Deploy multiple instances behind a load balancer:
-```
-upstream job_automation {
-    server localhost:3001;
-    server localhost:3002;
-    server localhost:3003;
-}
-server {
-    listen 80;
-    location / {
-        proxy_pass http://job_automation;
-    }
-}
-```
-
-### Database Optimization
-
-- Add indexes for frequently queried fields
-- Use MongoDB sharding for large datasets
-- Enable Redis persistence for queue data
-
-## Support
-
-For issues, check:
-- Application logs in `logs/` directory
-- GitHub Issues: https://github.com/Chaitu-Ck/job-1/issues
-- Queue dashboard: http://localhost:3000/admin/queues
-
-## Final Verification Checklist
-
-Before going live, verify:
-- MongoDB is running and accessible
-- Redis is running and accessible
-- All scrapers work (test each manually)
-- Email sending works (test with your email)
-- AI CV optimization works (test with sample job)
-- AI email generation works (test with sample job)
-- Dashboard loads and displays jobs
-- Dashboard filters work correctly
-- "Prepare" action generates CV and email
-- "Apply" action sends email successfully
-- Scheduler runs every 6 hours (check logs)
-- Queue dashboard accessible at /admin/queues
-- Metrics endpoint returns data
-- Health check passes
-- Performance acceptable (check /api/metrics)
-
-## You're Done!
-
-You now have a complete 24/7 job automation system that:
-✅ Scrapes jobs from LinkedIn, Reed, Indeed every 6 hours
-✅ Optimizes your CV using AI for each job
-✅ Generates custom emails that combine your skills with job requirements
-✅ Sends applications automatically via email or Easy Apply
-✅ Provides a dashboard for review and manual control
-✅ Monitors performance with metrics and health checks
-✅ Scales efficiently with clustering and caching
-✅ Runs continuously without manual intervention
-
-Next Steps:
-1. Run the setup: `node scripts/setup.js`
-2. Start services: `npm start`
-3. Open dashboard: http://localhost:3000/dashboard.html
-4. Watch it work: Jobs will be scraped, optimized, and ready for your review!
-
-Good luck with your job search! 🚀💼
+All core features implemented:
+- ✅ Multi-platform scraping
+- ✅ AI CV/Email generation
+- ✅ ATS scoring
+- ✅ Interactive dashboard
+- ✅ Database management
+- ✅ API endpoints
+- ✅ Deployment scripts

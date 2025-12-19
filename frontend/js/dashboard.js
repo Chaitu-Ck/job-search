@@ -72,6 +72,7 @@ class JobDashboard {
     const filterPlatform = document.getElementById('filter-platform');
     const searchInput = document.getElementById('search-input');
     const refreshBtn = document.getElementById('refresh-btn');
+    const resetDbBtn = document.getElementById('reset-db-btn');
 
     if (filterStatus) {
       filterStatus.addEventListener('change', (e) => {
@@ -105,6 +106,37 @@ class JobDashboard {
         } finally {
           refreshBtn.disabled = false;
           refreshBtn.textContent = 'Refresh';
+        }
+      });
+    }
+
+    if (resetDbBtn) {
+      resetDbBtn.addEventListener('click', async () => {
+        if (!confirm('⚠️ WARNING: This will DELETE ALL jobs from the database. Are you sure?')) return;
+        if (!confirm('This action CANNOT be undone. Proceed with database reset?')) return;
+        
+        try {
+          resetDbBtn.disabled = true;
+          resetDbBtn.textContent = 'Resetting...';
+          
+          const response = await fetch('/api/jobs', {
+            method: 'DELETE'
+          });
+          
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          
+          const result = await response.json();
+          alert(`✅ Database reset complete! ${result.deletedCount} jobs removed.`);
+          
+          await this.loadJobs();
+          await this.loadStats();
+          this.renderJobs();
+        } catch (error) {
+          alert(`❌ Failed to reset database: ${error.message}`);
+          console.error('Reset DB error:', error);
+        } finally {
+          resetDbBtn.disabled = false;
+          resetDbBtn.textContent = 'Reset Database';
         }
       });
     }
@@ -160,12 +192,18 @@ class JobDashboard {
       const viewBtn = document.getElementById(`view-${job._id}`);
       const prepareBtn = document.getElementById(`prepare-${job._id}`);
       const applyBtn = document.getElementById(`apply-${job._id}`);
-      const editBtn = document.getElementById(`edit-${job._id}`);
+      const viewCvBtn = document.getElementById(`view-cv-${job._id}`);
+      const viewEmailBtn = document.getElementById(`view-email-${job._id}`);
+      const regenerateCvBtn = document.getElementById(`regenerate-cv-${job._id}`);
+      const regenerateEmailBtn = document.getElementById(`regenerate-email-${job._id}`);
 
       if (viewBtn) viewBtn.addEventListener('click', () => this.viewJob(job));
       if (prepareBtn) prepareBtn.addEventListener('click', () => this.prepareJob(job));
       if (applyBtn) applyBtn.addEventListener('click', () => this.applyJob(job));
-      if (editBtn) editBtn.addEventListener('click', () => this.editJob(job));
+      if (viewCvBtn) viewCvBtn.addEventListener('click', () => this.viewCv(job));
+      if (viewEmailBtn) viewEmailBtn.addEventListener('click', () => this.viewEmail(job));
+      if (regenerateCvBtn) regenerateCvBtn.addEventListener('click', () => this.regenerateCv(job));
+      if (regenerateEmailBtn) regenerateEmailBtn.addEventListener('click', () => this.regenerateEmail(job));
     });
   }
 
@@ -189,6 +227,9 @@ class JobDashboard {
     const description = job.description || 'No description available';
     const truncatedDesc = description.length > 200 ? description.substring(0, 200) + '...' : description;
 
+    const hasCv = job.aiGenerated?.resume?.content;
+    const hasEmail = job.aiGenerated?.email?.body;
+
     return `
       <div class="job-card">
         <div class="job-header">
@@ -208,12 +249,28 @@ class JobDashboard {
           ${atsScore ? `<div class="meta-item">📊 ATS Score: <span class="${this.getAtsScoreClass(atsScore)}">${atsScore}%</span></div>` : ''}
         </div>
         <div class="job-description">${this.escapeHtml(truncatedDesc)}</div>
+        
+        ${hasCv || hasEmail ? `
+          <div class="job-ai-section">
+            <div style="font-weight:600;margin-bottom:8px;color:#334155;">🤖 AI Generated Content:</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              ${hasCv ? `
+                <button class="btn-action btn-view-small" id="view-cv-${job._id}" style="font-size:13px;padding:6px 12px;">View CV</button>
+                <button class="btn-action btn-regenerate" id="regenerate-cv-${job._id}" style="font-size:13px;padding:6px 12px;">Regenerate CV</button>
+              ` : ''}
+              ${hasEmail ? `
+                <button class="btn-action btn-view-small" id="view-email-${job._id}" style="font-size:13px;padding:6px 12px;">View Email</button>
+                <button class="btn-action btn-regenerate" id="regenerate-email-${job._id}" style="font-size:13px;padding:6px 12px;">Regenerate Email</button>
+              ` : ''}
+            </div>
+          </div>
+        ` : ''}
+        
         <div class="job-actions">
           <button class="btn-action btn-view" id="view-${job._id}">View Details</button>
-          ${job.status === 'scraped' ? `<button class="btn-action btn-prepare" id="prepare-${job._id}">Prepare Application</button>` : ''}
+          ${job.status === 'scraped' ? `<button class="btn-action btn-prepare" id="prepare-${job._id}">🤖 Generate CV & Email</button>` : ''}
           ${job.status === 'ready_for_review' ? `
-            <button class="btn-action btn-edit" id="edit-${job._id}">Edit Resume/Email</button>
-            <button class="btn-action btn-apply" id="apply-${job._id}">Apply Now</button>
+            <button class="btn-action btn-apply" id="apply-${job._id}">✅ Apply Now</button>
           ` : ''}
         </div>
       </div>
@@ -320,40 +377,286 @@ class JobDashboard {
     }
   }
 
-  editJob(job) {
-    const modal = document.getElementById('edit-modal');
+  viewCv(job) {
+    const modal = document.getElementById('cv-modal');
     if (!modal) return;
 
-    const subjectInput = document.getElementById('email-subject');
-    const bodyTextarea = document.getElementById('email-body');
+    const content = job.aiGenerated?.resume?.content || 'No CV generated yet.';
+    const atsScore = job.aiGenerated?.resume?.atsScore;
     
-    if (subjectInput) {
-      subjectInput.value = job.aiGenerated?.email?.subject || 
-        `Application for ${job.title} Position at ${job.company}`;
-    }
+    document.getElementById('cv-modal-title').textContent = `CV for ${job.title} at ${job.company}`;
+    document.getElementById('cv-content').value = content;
     
-    if (bodyTextarea) {
-      const defaultBody = `Dear Hiring Manager,
-
-I am writing to express my strong interest in the ${job.title} position at ${job.company}.
-
-${job.aiGenerated?.resume?.atsScore ? `My resume has an ${job.aiGenerated.resume.atsScore}% ATS compatibility score with this role, indicating strong alignment with your requirements.
-
-` : ''}I believe my background and skills make me an excellent candidate for this position.
-
-Best regards`;
-      
-      bodyTextarea.value = job.aiGenerated?.email?.body || defaultBody;
+    if (atsScore) {
+      document.getElementById('cv-ats-score').textContent = `ATS Score: ${atsScore}%`;
+      document.getElementById('cv-ats-score').className = `cv-ats-badge ${this.getAtsScoreClass(atsScore)}`;
+      document.getElementById('cv-ats-score').style.display = 'inline-block';
+    } else {
+      document.getElementById('cv-ats-score').style.display = 'none';
     }
     
     modal.style.display = 'block';
-
-    const saveBtn = document.getElementById('save-changes');
-    if (saveBtn) {
-      saveBtn.onclick = async () => {
-        modal.style.display = 'none';
-        alert('✅ Changes saved!');
+    
+    const saveCvBtn = document.getElementById('save-cv');
+    if (saveCvBtn) {
+      saveCvBtn.onclick = async () => {
+        const newContent = document.getElementById('cv-content').value;
+        await this.saveCv(job._id, newContent);
       };
+    }
+
+    const aiOptimizeCvBtn = document.getElementById('ai-optimize-cv');
+    if (aiOptimizeCvBtn) {
+      aiOptimizeCvBtn.onclick = async () => {
+        await this.aiOptimizeCv(job);
+      };
+    }
+  }
+
+  viewEmail(job) {
+    const modal = document.getElementById('email-modal');
+    if (!modal) return;
+
+    const subject = job.aiGenerated?.email?.subject || `Application for ${job.title} Position`;
+    const body = job.aiGenerated?.email?.body || 'No email generated yet.';
+    
+    document.getElementById('email-modal-title').textContent = `Email for ${job.title} at ${job.company}`;
+    document.getElementById('email-subject').value = subject;
+    document.getElementById('email-body').value = body;
+    
+    modal.style.display = 'block';
+    
+    const saveEmailBtn = document.getElementById('save-email');
+    if (saveEmailBtn) {
+      saveEmailBtn.onclick = async () => {
+        const newSubject = document.getElementById('email-subject').value;
+        const newBody = document.getElementById('email-body').value;
+        await this.saveEmail(job._id, newSubject, newBody);
+      };
+    }
+
+    const aiOptimizeEmailBtn = document.getElementById('ai-optimize-email');
+    if (aiOptimizeEmailBtn) {
+      aiOptimizeEmailBtn.onclick = async () => {
+        await this.aiOptimizeEmail(job);
+      };
+    }
+  }
+
+  async regenerateCv(job) {
+    if (!confirm(`Regenerate CV for ${job.title} at ${job.company} using AI?`)) return;
+    
+    try {
+      const btn = document.getElementById(`regenerate-cv-${job._id}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+      }
+      
+      const response = await fetch(`/api/jobs/${job._id}/regenerate-cv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback: 'Please improve the CV' })
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const result = await response.json();
+      alert(`✅ CV regenerated successfully! ATS Score: ${result.cv.atsScore || 'N/A'}%`);
+      
+      await this.loadJobs();
+      this.renderJobs();
+    } catch (error) {
+      alert(`❌ Failed to regenerate CV: ${error.message}`);
+      console.error('Regenerate CV error:', error);
+    } finally {
+      const btn = document.getElementById(`regenerate-cv-${job._id}`);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Regenerate CV';
+      }
+    }
+  }
+
+  async regenerateEmail(job) {
+    if (!confirm(`Regenerate cover email for ${job.title} at ${job.company} using AI?`)) return;
+    
+    try {
+      const btn = document.getElementById(`regenerate-email-${job._id}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+      }
+      
+      const response = await fetch(`/api/jobs/${job._id}/regenerate-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback: 'Please improve the email' })
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const result = await response.json();
+      alert('✅ Email regenerated successfully!');
+      
+      await this.loadJobs();
+      this.renderJobs();
+    } catch (error) {
+      alert(`❌ Failed to regenerate email: ${error.message}`);
+      console.error('Regenerate email error:', error);
+    } finally {
+      const btn = document.getElementById(`regenerate-email-${job._id}`);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Regenerate Email';
+      }
+    }
+  }
+
+  async saveCv(jobId, content) {
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/cv`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      alert('✅ CV saved successfully!');
+      document.getElementById('cv-modal').style.display = 'none';
+      
+      await this.loadJobs();
+      this.renderJobs();
+    } catch (error) {
+      alert(`❌ Failed to save CV: ${error.message}`);
+      console.error('Save CV error:', error);
+    }
+  }
+
+  async saveEmail(jobId, subject, body) {
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/email`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, body })
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      alert('✅ Email saved successfully!');
+      document.getElementById('email-modal').style.display = 'none';
+      
+      await this.loadJobs();
+      this.renderJobs();
+    } catch (error) {
+      alert(`❌ Failed to save email: ${error.message}`);
+      console.error('Save email error:', error);
+    }
+  }
+
+  async aiOptimizeCv(job) {
+    const content = document.getElementById('cv-content').value;
+    
+    if (!confirm('Use Google AI to optimize this CV for better ATS compatibility?')) return;
+    
+    try {
+      const btn = document.getElementById('ai-optimize-cv');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Optimizing...';
+      }
+      
+      const response = await fetch(`/api/jobs/${job._id}/optimize-cv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentContent: content })
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const result = await response.json();
+      
+      document.getElementById('cv-content').value = result.optimizedContent;
+      
+      if (result.atsScore) {
+        document.getElementById('cv-ats-score').textContent = `ATS Score: ${result.atsScore}%`;
+        document.getElementById('cv-ats-score').className = `cv-ats-badge ${this.getAtsScoreClass(result.atsScore)}`;
+      }
+      
+      alert(`✅ CV optimized! New ATS Score: ${result.atsScore || 'N/A'}%`);
+    } catch (error) {
+      alert(`❌ Failed to optimize CV: ${error.message}`);
+      console.error('AI optimize CV error:', error);
+    } finally {
+      const btn = document.getElementById('ai-optimize-cv');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'AI Optimize';
+      }
+    }
+  }
+
+  async aiOptimizeEmail(job) {
+    const content = document.getElementById('email-body').value;
+    
+    if (!confirm('Use Google AI to optimize this cover email?')) return;
+    
+    try {
+      const btn = document.getElementById('ai-optimize-email');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Optimizing...';
+      }
+      
+      const response = await fetch(`/api/jobs/${job._id}/optimize-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentContent: content })
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const result = await response.json();
+      
+      document.getElementById('email-subject').value = result.subject;
+      document.getElementById('email-body').value = result.body;
+      
+      alert('✅ Email optimized successfully!');
+    } catch (error) {
+      alert(`❌ Failed to optimize email: ${error.message}`);
+      console.error('AI optimize email error:', error);
+    } finally {
+      const btn = document.getElementById('ai-optimize-email');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'AI Optimize';
+      }
+    }
+  }
+
+  async prepareJob(job) {
+    if (!confirm(`Generate AI-powered CV and email for ${job.title} at ${job.company}?`)) return;
+
+    try {
+      const btn = document.getElementById(`prepare-${job._id}`);
+      btn.disabled = true;
+      btn.textContent = '⏳ Generating...';
+
+      const response = await fetch(`/api/jobs/${job._id}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      alert('✅ CV and Email generated successfully!');
+      await this.loadJobs();
+      await this.loadStats();
+      this.renderJobs();
+
+    } catch (error) {
+      alert(`❌ Generation failed: ${error.message}`);
     }
   }
 
