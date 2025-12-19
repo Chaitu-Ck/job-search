@@ -55,7 +55,8 @@ class JobDashboard {
       const response = await fetch('/api/jobs');
       if (!response.ok) throw new Error('Failed to load jobs');
       
-      this.jobs = await response.json();
+      const data = await response.json();
+      this.jobs = data.jobs || [];
       this.filteredJobs = [...this.jobs];
       this.renderJobs();
       hideLoading();
@@ -68,7 +69,7 @@ class JobDashboard {
 
   async loadStats() {
     try {
-      const response = await fetch('/api/jobs/stats');
+      const response = await fetch('/api/stats');
       if (!response.ok) throw new Error('Failed to load stats');
       
       const stats = await response.json();
@@ -78,15 +79,33 @@ class JobDashboard {
     }
   }
 
-  updateStats(stats) {
+  updateStats(data) {
     // Update stat cards with real data
-    document.querySelectorAll('.stat-card').forEach(card => {
-      const type = card.dataset.type;
-      const numberElement = card.querySelector('.number');
-      if (numberElement && stats[type] !== undefined) {
-        numberElement.textContent = stats[type];
-      }
-    });
+    const stats = data.stats || {};
+    
+    // Update total jobs
+    const totalElement = document.getElementById('total-jobs');
+    if (totalElement) {
+      totalElement.textContent = stats.total || 0;
+    }
+    
+    // Update pending jobs
+    const pendingElement = document.getElementById('pending-jobs');
+    if (pendingElement) {
+      pendingElement.textContent = stats.byStatus?.scraped || 0;
+    }
+    
+    // Update ready jobs
+    const readyElement = document.getElementById('ready-jobs');
+    if (readyElement) {
+      readyElement.textContent = stats.byStatus?.ready_for_review || 0;
+    }
+    
+    // Update applied jobs
+    const appliedElement = document.getElementById('applied-jobs');
+    if (appliedElement) {
+      appliedElement.textContent = stats.byStatus?.applied || 0;
+    }
   }
 
   handleSearch(query) {
