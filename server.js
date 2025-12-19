@@ -143,14 +143,13 @@ const connectDB = async (retries = 5) => {
 
 // Graceful shutdown
 const gracefulShutdown = async (signal) => {
-  logger.info(`${signal} received, shutting down gracefully`);
-  
+  logger.info(`${signal} received, shutting down`);
   try {
+    await continuousScheduler.cleanup();
     await mongoose.connection.close();
-    logger.info('MongoDB connection closed');
     process.exit(0);
   } catch (err) {
-    logger.error('Error during shutdown:', err);
+    logger.error('Shutdown error:', err);
     process.exit(1);
   }
 };

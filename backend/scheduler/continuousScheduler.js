@@ -1,82 +1,23 @@
 const cron = require('node-cron');
 const logger = require('../utils/logger');
-const { SEARCH_KEYWORDS } = require('../config/companySources');
 
-// Import all scrapers
 const linkedinScraper = require('../scrapers/linkedinScraper');
-const reedScraper = require('../scrapers/reedScraper');
 const indeedScraper = require('../scrapers/indeedScraper');
-const cwjobsScraper = require('../scrapers/cwjobsScraper');
-const totaljobsScraper = require('../scrapers/totaljobsScraper');
-const companyPagesScraper = require('../scrapers/companyPagesScraper');
-const studentcircusScraper = require('../scrapers/studentcircusScraper'); // NEW
-
-const jobService = require('../services/jobService');
-const metrics = require('../utils/metrics');
+const reedScraper = require('../scrapers/reedScraper');
+const studentcircusScraper = require('../scrapers/studentcircusScraper');
+const atsProcessor = require('./atsProcessor');
 
 class ContinuousScheduler {
-    constructor() {
-        this.isRunning = false;
-        this.keywords = process.env.SEARCH_KEYWORDS?.split(',') || SEARCH_KEYWORDS;
-        this.location = process.env.SEARCH_LOCATION || 'United Kingdom';
-        
-        // Maximum age for jobs (in days) - only scrape fresh jobs
-        this.maxJobAge = parseInt(process.env.MAX_JOB_AGE_DAYS) || 7;
-        
-        this.scrapers = [
-            { 
-                name: 'StudentCircus', 
-                scraper: studentcircusScraper, 
-                enabled: process.env.ENABLE_STUDENTCIRCUS !== 'false',
-                priority: 1, // Highest priority - graduate-focused
-                maxPages: 5
-            },
-            { 
-                name: 'Indeed', 
-                scraper: indeedScraper, 
-                enabled: process.env.ENABLE_INDEED !== 'false',
-                priority: 2,
-                maxPages: 5
-            },
-            { 
-                name: 'Reed', 
-                scraper: reedScraper, 
-                enabled: process.env.ENABLE_REED !== 'false',
-                priority: 3,
-                maxPages: 5
-            },
-            { 
-                name: 'CWJobs', 
-                scraper: cwjobsScraper, 
-                enabled: process.env.ENABLE_CWJOBS !== 'false',
-                priority: 4,
-                maxPages: 3
-            },
-            { 
-                name: 'TotalJobs', 
-                scraper: totaljobsScraper, 
-                enabled: process.env.ENABLE_TOTALJOBS !== 'false',
-                priority: 5,
-                maxPages: 3
-            },
-            { 
-                name: 'LinkedIn', 
-                scraper: linkedinScraper, 
-                enabled: process.env.ENABLE_LINKEDIN === 'true',
-                priority: 6,
-                maxPages: 3
-            },
-            { 
-                name: 'Company Pages', 
-                scraper: companyPagesScraper, 
-                enabled: true,
-                priority: 7
-            }
-        ];
-        
-        // Sort by priority
-        this.scrapers.sort((a, b) => a.priority - b.priority);
-    }
+  constructor() {
+    this.tasks = [];
+    this.isRunning = false;
+    this.scrapers = [
+      { name: 'Reed', scraper: reedScraper, schedule: '0 */4 * * *', enabled: true },
+      { name: 'LinkedIn', scraper: linkedinScraper, schedule: '0 */6 * * *', enabled: true },
+      { name: 'Indeed', scraper: indeedScraper, schedule: '0 */8 * * *', enabled: true },
+      { name: 'StudentCircus', scraper: studentcircusScraper, schedule: '0 */12 * * *', enabled: true }
+    ];
+  }
     
     async runScrapingJob() {
         if (this.isRunning) {
@@ -180,135 +121,108 @@ class ContinuousScheduler {
     }
     
     startScheduler() {
-        logger.info('🕐 Starting continuous job scheduler...');
-        logger.info(`📋 Keywords: ${this.keywords.join(', ')}`);
-        logger.info(`📍 Location: ${this.location}`);
-        logger.info(`📅 Max job age: ${this.maxJobAge} days`);
-        logger.info(`🔄 Schedule: Every 6 hours`);
-        
-        // Run immediately on startup
-        setTimeout(() => {
-            logger.info('▶️ Running initial scraping job...');
-            this.runScrapingJob();
-        }, 5000); // 5 second delay after server start
-        
-        // Schedule to run every 6 hours
-        cron.schedule('0 */6 * * *', () => {
-            logger.info('⏰ Scheduled scraping job triggered');
-            this.runScrapingJob();
-        });
-        
-        // Also run daily cleanup at 3 AM
-        cron.schedule('0 3 * * *', async () => {
-            logger.info('🧹 Running daily cleanup job');
-            await jobService.markStaleJobs(this.maxJobAge);
-        });
-        
-        logger.info('✅ Continuous scheduler started successfully!');
-        logger.info('💡 Next scrape run: In 6 hours');
-        logger.info('💡 Daily cleanup: 3 AM');
+    if (this.isRunning) {
+      logger.warn('Scheduler already running');
+      return;
     }
 
-  async runScrapingCycle() {
-    // Alias for backward compatibility
-    return await this.runScrapingJob();
-  }
+    logger.info('🚀 Starting continuous scheduler');
+    this.isRunning = true;
 
-  async scrapeLinkedIn() {
-    // Use top 10 keywords for LinkedIn
-    const topKeywords = this.keywords.slice(0, 10);
-    const jobs = await linkedinScraper.scrapeMultipleSearches(topKeywords, this.location);
-    
-    const result = await jobService.saveJobs(
-      jobs.map(job => ({ ...job, platform: 'LinkedIn', status: 'pending' }))
-    );
-    
-    return result.newJobs;
-  }
+    for (const { name, scraper, schedule, enabled } of this.scrapers) {
+      if (!enabled) {
+        logger.info(`⏭️ ${name} scraper disabled`);
+        continue;
+      }
 
-  async scrapeReed() {
-    const reedJobs = [];
-    // Use top 8 keywords for Reed
-    const keywords = this.keywords.slice(0, 8);
-    
-    for (const keyword of keywords) {
-      const jobs = await reedScraper.scrapeJobs(keyword, this.location);
-      reedJobs.push(...jobs);
+      const task = cron.schedule(schedule, async () => {
+        await this.runScraper(name, scraper);
+      }, {
+        scheduled: true,
+        timezone: 'Europe/London'
+      });
+
+      this.tasks.push({ name, task });
+      logger.info(`✅ ${name} scheduled: ${schedule}`);
     }
-    
-    const result = await jobService.saveJobs(
-      reedJobs.map(job => ({ ...job, status: 'pending' }))
-    );
-    
-    return result.newJobs;
+
+    atsProcessor.start();
+
+    setTimeout(() => this.runInitialScrape(), 3000);
   }
 
-  async scrapeIndeed() {
-    const indeedJobs = [];
-    // Use top 8 keywords for Indeed
-    const keywords = this.keywords.slice(0, 8);
-    
-    for (const keyword of keywords) {
-      const jobs = await indeedScraper.scrapeJobs(keyword, this.location);
-      indeedJobs.push(...jobs);
+  async runInitialScrape() {
+    logger.info('🔄 Running initial scrape');
+
+    for (const { name, scraper, enabled } of this.scrapers) {
+      if (!enabled) continue;
+      
+      await this.runScraper(name, scraper);
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
-    
-    const result = await jobService.saveJobs(
-      indeedJobs.map(job => ({ ...job, status: 'pending' }))
-    );
-    
-    return result.newJobs;
+
+    setTimeout(() => atsProcessor.processUnanalyzedJobs(), 10000);
   }
 
-  async scrapeCWJobs() {
-    const cwJobs = [];
-    // Use top 5 keywords for CWJobs (IT/Tech specialist)
-    const keywords = this.keywords.slice(0, 5);
-    
-    for (const keyword of keywords) {
-      const jobs = await cwjobsScraper.scrapeJobs(keyword, this.location);
-      cwJobs.push(...jobs);
+  async runScraper(name, scraper) {
+    const startTime = Date.now();
+    logger.info(`▶️ Starting ${name} scraper`);
+
+    try {
+      const result = await scraper.scrapeJobs();
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+      logger.info(`✅ ${name} completed`, {
+        success: result.success,
+        jobsScraped: result.jobsScraped || 0,
+        duration: `${duration}s`
+      });
+
+      return result;
+
+    } catch (error) {
+      logger.error(`❌ ${name} failed:`, error.message);
+      return { success: false, error: error.message, platform: name };
     }
-    
-    const result = await jobService.saveJobs(
-      cwJobs.map(job => ({ ...job, status: 'pending' }))
-    );
-    
-    return result.newJobs;
   }
 
-  async scrapeTotalJobs() {
-    const totalJobs = [];
-    // Use top 5 keywords for TotalJobs
-    const keywords = this.keywords.slice(0, 5);
-    
-    for (const keyword of keywords) {
-      const jobs = await totaljobsScraper.scrapeJobs(keyword, this.location);
-      totalJobs.push(...jobs);
+  stopScheduler() {
+    if (!this.isRunning) return;
+
+    logger.info('🛑 Stopping scheduler');
+
+    for (const { name, task } of this.tasks) {
+      task.stop();
+      logger.info(`Stopped ${name}`);
     }
-    
-    const result = await jobService.saveJobs(
-      totalJobs.map(job => ({ ...job, status: 'pending' }))
-    );
-    
-    return result.newJobs;
+
+    atsProcessor.stop();
+
+    this.tasks = [];
+    this.isRunning = false;
   }
 
-  async scrapeCompanyPages() {
-    // Use top 5 keywords for company pages
-    const keywords = this.keywords.slice(0, 5);
-    const jobs = await companyPagesScraper.scrapeAllCompanies(keywords);
-    
-    const result = await jobService.saveJobs(
-      jobs.map(job => ({ ...job, platform: 'Company Career Page', status: 'pending' }))
-    );
-    
-    return result.newJobs;
+  async cleanup() {
+    this.stopScheduler();
+
+    for (const { name, scraper } of this.scrapers) {
+      if (scraper.cleanup) {
+        await scraper.cleanup();
+        logger.info(`Cleaned up ${name}`);
+      }
+    }
   }
 
-  async cleanupOldJobs() {
-    logger.info('🧹 Running daily job cleanup');
-    await jobService.markStaleJobs(7); // Mark jobs older than 7 days as stale
+  getStatus() {
+    return {
+      isRunning: this.isRunning,
+      scrapers: this.scrapers.map(s => ({
+        name: s.name,
+        schedule: s.schedule,
+        enabled: s.enabled
+      })),
+      tasksCount: this.tasks.length
+    };
   }
 }
 
